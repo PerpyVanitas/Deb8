@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { useChat, type Message } from "@ai-sdk/react"
+import { useChat } from "@ai-sdk/react"
+import { type UIMessage } from "ai"
 import { MessageCircle, X, Send, Bot, User, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,10 +12,28 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
   const [isOpen, setIsOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const [input, setInput] = useState("")
+
+  const { messages, sendMessage, status } = useChat({
     api: '/api/chat',
     body: { analysis, motion }
   })
+  
+  const isLoading = status === 'submitted' || status === 'streaming'
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value)
+  }
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading) return
+    
+    sendMessage({ 
+      messages: [...messages, { id: crypto.randomUUID(), role: 'user', content: input } as UIMessage] 
+    })
+    setInput("")
+  }
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -54,7 +73,7 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
             </div>
           )}
           
-          {messages.map((m: Message) => (
+          {messages.map((m: UIMessage) => (
             <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
                 {m.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
