@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -13,9 +14,10 @@ export default async function HomePage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="text-lg font-semibold tracking-tight">
-            Rostrum
+            Deb8
           </Link>
-          <nav className="flex items-center gap-3">
+          <nav className="flex items-center gap-2">
+            <ThemeToggle />
             {user ? (
               <Button asChild size="sm">
                 <Link href="/dashboard">Dashboard</Link>
