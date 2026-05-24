@@ -1,37 +1,59 @@
-export default function Page() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 text-neutral-400">
-      <div className="flex w-full max-w-md flex-col items-start gap-8">
-        <svg
-          fill="currentColor"
-          viewBox="0 0 147 70"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-          className="size-10 text-white"
-        >
-          <path d="M56 50.2031V14H70V60.1562C70 65.5928 65.5928 70 60.1562 70C57.5605 70 54.9982 68.9992 53.1562 67.1573L0 14H19.7969L56 50.2031Z" />
-          <path d="M147 56H133V23.9531L100.953 56H133V70H96.6875C85.8144 70 77 61.1856 77 50.3125V14H91V46.1562L123.156 14H91V0H127.312C138.186 0 147 8.81439 147 19.6875V56Z" />
-        </svg>
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { Button } from "@/components/ui/button"
 
-        <div className="space-y-3">
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-white">
-            To get started, describe what you want to build.
-          </h1>
-          <p className="text-pretty text-sm leading-relaxed text-neutral-500">
-            This is the default page for a fresh v0 project. Open the prompt and
-            tell v0 what to create, or browse the{' '}
-            <a
-              href="https://v0.app/templates"
-              target="_blank"
-              rel="noreferrer"
-              className="text-neutral-300 underline underline-offset-4 hover:text-white"
-            >
-              Community
-            </a>{' '}
-            for inspiration.
-          </p>
+export default async function HomePage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  return (
+    <main className="min-h-screen bg-background">
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link href="/" className="text-lg font-semibold tracking-tight">
+            Rostrum
+          </Link>
+          <nav className="flex items-center gap-3">
+            {user ? (
+              <Button asChild size="sm">
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/auth/login">Log in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/auth/sign-up">Sign up</Link>
+                </Button>
+              </>
+            )}
+          </nav>
         </div>
-      </div>
+      </header>
+
+      <section className="mx-auto flex max-w-3xl flex-col items-start gap-6 px-6 py-24">
+        <span className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
+          AI-powered debate training
+        </span>
+        <h1 className="text-balance text-4xl font-semibold tracking-tight md:text-5xl">
+          Train smarter. Argue sharper. Win more rounds.
+        </h1>
+        <p className="text-pretty text-base leading-relaxed text-muted-foreground md:text-lg">
+          Practice British Parliamentary, World Schools, and Policy debate with an AI judge that gives you transcripts,
+          structural analysis, fact-checks, and personalized coaching after every speech.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild size="lg">
+            <Link href={user ? "/dashboard" : "/auth/sign-up"}>Start a session</Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/motions">Browse motions</Link>
+          </Button>
+        </div>
+      </section>
     </main>
   )
 }
