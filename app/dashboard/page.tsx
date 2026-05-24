@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   }
 
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
+  const isAdmin = !!profile?.is_admin
 
   const { data: sessions } = await supabase
     .from("debate_sessions")
@@ -35,6 +36,11 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          {isAdmin ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/admin">Admin</Link>
+            </Button>
+          ) : null}
           <form action="/auth/signout" method="post">
             <Button variant="outline" size="sm" type="submit" formAction="/auth/signout">
               Sign out
