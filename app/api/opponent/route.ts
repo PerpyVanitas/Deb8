@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { transcript, motion, persona } = await req.json()
+    const { transcript, motion, persona, role, format } = await req.json()
 
     if (!transcript || !motion) {
       return NextResponse.json({ error: 'Missing transcript or motion' }, { status: 400 })
@@ -26,7 +26,9 @@ export async function POST(req: Request) {
     const rebuttal = await generateOpponentRebuttal({
       transcript,
       motion,
-      persona: persona || 'aggressive'
+      persona: persona || 'aggressive',
+      role,
+      format
     })
 
     return NextResponse.json({ rebuttal })

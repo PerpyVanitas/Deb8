@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-
 export async function generateOpponentRebuttal({
   transcript,
   motion,
@@ -41,6 +39,11 @@ CRITICAL INSTRUCTION: You are an elite HUMAN debater, not an omniscient AI. You 
 - Do not compute infinite facts. Rely on standard, well-known debate examples.
 - Focus your rebuttal on their 1 or 2 strongest points, rather than a robotic point-by-point flawless refutation.
 `
+
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured")
+  }
+  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
   const model = genai.getGenerativeModel({ 
     model: 'gemini-2.0-flash',
