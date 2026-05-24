@@ -3,6 +3,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -32,11 +33,14 @@ export default async function DashboardPage() {
           </h1>
           <p className="text-sm text-muted-foreground">{profile?.total_speeches ?? 0} speeches delivered</p>
         </div>
-        <form action="/auth/signout" method="post">
-          <Button variant="outline" size="sm" type="submit" formAction="/auth/signout">
-            Sign out
-          </Button>
-        </form>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <form action="/auth/signout" method="post">
+            <Button variant="outline" size="sm" type="submit" formAction="/auth/signout">
+              Sign out
+            </Button>
+          </form>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
