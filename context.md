@@ -83,6 +83,7 @@ INNGEST_SIGNING_KEY="local"
 ```
 
 ## 5. Design Philosophy
+- **NO CAMERA/VIDEO TRACKING**: Under absolutely no circumstances should any feature involving webcams, video recording, or camera-based body-language tracking be implemented. The app is strictly audio and text-based.
 - **Aesthetics First**: Vibrant, modern UI/UX with smooth transitions and premium typography.
 - **Speed**: Heavy workloads (transcription/AI) are pushed to background queues (Inngest) or Edge networks. Client-side blocking operations must use Web Workers (FFmpeg).
 - **Graceful Degradation**: Always provide loaders, skeletons, and error fallbacks.

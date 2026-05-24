@@ -266,7 +266,7 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
         {loadedMotions.map((m) => (
           <Card 
             key={m.id} 
-            className={`cursor-pointer transition-colors ${selectedMotionId === m.id ? 'ring-2 ring-primary border-transparent' : 'hover:border-primary/50'}`}
+            className={`cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-md ${selectedMotionId === m.id ? 'ring-2 ring-primary border-transparent' : 'hover:border-primary/50'}`}
             onClick={() => setSelectedMotionId(m.id)}
           >
             <CardHeader className="pb-3">

@@ -183,9 +183,9 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
         <TabsContent value="coaching" className="space-y-6 mt-0">
           {/* Strengths & Weaknesses */}
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="border-green-500/30 bg-green-500/5 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-400">
+            <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500">
                   <TrendingUp className="w-5 h-5" /> Strengths
                 </CardTitle>
               </CardHeader>
@@ -193,7 +193,7 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
                 <ul className="space-y-4">
                   {coaching?.strengths?.map((s: string, i: number) => (
                     <li key={i} className="flex gap-3 text-sm leading-relaxed items-start">
-                      <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                       <span>{s}</span>
                     </li>
                   ))}
@@ -201,9 +201,9 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
               </CardContent>
             </Card>
 
-            <Card className="border-red-500/30 bg-red-500/5 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <Card className="border-rose-500/30 bg-rose-500/5 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-500">
                   <AlertTriangle className="w-5 h-5" /> Areas for Improvement
                 </CardTitle>
               </CardHeader>
@@ -211,7 +211,7 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
                 <ul className="space-y-4">
                   {coaching?.weaknesses?.map((w: string, i: number) => (
                     <li key={i} className="flex gap-3 text-sm leading-relaxed items-start">
-                      <div className="w-2 h-2 rounded-full bg-red-500 mt-2 shrink-0" />
+                      <div className="w-2 h-2 rounded-full bg-rose-500 mt-2 shrink-0" />
                       <span>{w}</span>
                     </li>
                   ))}

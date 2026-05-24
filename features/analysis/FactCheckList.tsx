@@ -14,9 +14,9 @@ export function FactCheckList({ factChecks }: FactCheckProps) {
   const getVerdictIcon = (verdict: string) => {
     switch (verdict.toLowerCase()) {
       case 'true':
-        return <CheckCircle className="w-4 h-4 text-green-500 mr-1" />;
+        return <CheckCircle className="w-4 h-4 text-emerald-500 mr-1" />;
       case 'false':
-        return <AlertCircle className="w-4 h-4 text-red-500 mr-1" />;
+        return <AlertCircle className="w-4 h-4 text-rose-500 mr-1" />;
       case 'misleading':
         return <ShieldAlert className="w-4 h-4 text-yellow-500 mr-1" />;
       default:
@@ -27,9 +27,9 @@ export function FactCheckList({ factChecks }: FactCheckProps) {
   const getVerdictColor = (verdict: string) => {
     switch (verdict.toLowerCase()) {
       case 'true':
-        return "bg-green-500/10 text-green-700 border-green-500/20";
+        return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
       case 'false':
-        return "bg-red-500/10 text-red-700 border-red-500/20";
+        return "bg-rose-500/10 text-rose-700 border-rose-500/20";
       case 'misleading':
         return "bg-yellow-500/10 text-yellow-700 border-yellow-500/20";
       default:

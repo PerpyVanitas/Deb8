@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { Mic, Square, Loader2, Pause, Play, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { AudioWaveform } from "@/components/ui/audio-waveform"
+import { toast } from "sonner"
 
 export function RecordingPanel({ 
   sessionId, 
@@ -23,7 +24,7 @@ export function RecordingPanel({
   speakerRole?: string;
   maxSpeakers?: number;
 }) {
-  const { status, audioBlob, start, stop, pause, resume, discard, stream } = useRecorder()
+  const { status, audioBlob, start, stop, pause, resume, discard, stream, clearAutosave } = useRecorder()
   const [seconds, setSeconds] = useState(0)
   const [isBlindnessMode, setIsBlindnessMode] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
@@ -79,6 +80,7 @@ export function RecordingPanel({
       if (!res.ok) throw new Error("Transcription failed")
       
       setIsTranscribing(false)
+      clearAutosave()
       
       // Multi-speaker logic
       if (speakerIndex + 1 < maxSpeakers) {
@@ -90,12 +92,14 @@ export function RecordingPanel({
         // Navigate to analysis page
         router.push(`/sessions/${sessionId}/analysis`)
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
       setIsCompressing(false)
       setIsUploading(false)
       setIsTranscribing(false)
-      alert("An error occurred during compression/upload/transcription.")
+      toast.error("Processing Failed", {
+        description: err.message || "An error occurred during compression/upload/transcription.",
+      })
     }
   }
 
