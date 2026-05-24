@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { SkillTree } from "@/features/progression/SkillTree"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -24,6 +25,13 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5)
+
+  const { data: history } = await supabase
+    .from("skill_snapshots")
+    .select("created_at, scores")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(10)
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -47,6 +55,10 @@ export default async function DashboardPage() {
             </Button>
           </form>
         </div>
+      </div>
+
+      <div className="mb-8">
+        <SkillTree debateDna={profile?.debate_dna} history={history || []} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
