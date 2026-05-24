@@ -2,12 +2,10 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { MotionSelector } from "@/features/motion/MotionSelector"
 
+import { getMotions } from "./actions"
+
 export default async function MotionsPage() {
-  const supabase = await createClient()
-  const { data: motions } = await supabase
-    .from("motions")
-    .select("*")
-    .order("created_at", { ascending: false })
+  const motions = await getMotions(0)
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">

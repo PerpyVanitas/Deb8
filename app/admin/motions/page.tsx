@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table"
 import { CreateMotionForm } from "./_components/create-motion-form"
 import { DeleteMotionButton } from "./_components/delete-motion-button"
+import { BulkUploadForm } from "./_components/bulk-upload-form"
 
 export const dynamic = "force-dynamic"
 
@@ -38,6 +39,16 @@ export default async function AdminMotionsPage() {
         </CardHeader>
         <CardContent>
           <CreateMotionForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Bulk Upload (CSV)</CardTitle>
+          <CardDescription>Upload a spreadsheet of motions to import them all at once.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BulkUploadForm />
         </CardContent>
       </Card>
 

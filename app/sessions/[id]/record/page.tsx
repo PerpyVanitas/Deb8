@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { RecordingPanel } from "@/features/recording/RecordingPanel"
+import { PrepTimer } from "@/features/recording/PrepTimer"
+import { FlowSheet } from "@/features/recording/FlowSheet"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-export default async function RecordPage({ params }: { params: { id: string } }) {
+export default async function RecordPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ speaker?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -15,11 +17,25 @@ export default async function RecordPage({ params }: { params: { id: string } })
   const { data: session } = await supabase
     .from("debate_sessions")
     .select("*, motions(text, category, difficulty, format)")
-    .eq("id", params.id)
+    .eq("id", (await params).id)
     .single()
 
   if (!session || session.user_id !== user.id) {
     redirect("/dashboard")
+  }
+
+  const speakerIndex = parseInt((await searchParams).speaker || "0")
+  let maxSpeakers = 1
+  if (session.mode === 'human_vs_human_1v1') maxSpeakers = 2
+  else if (session.mode === 'human_vs_human_3v3') maxSpeakers = 6
+
+  // Define roles based on format/mode for the UI
+  let currentRole = session.role
+  if (session.mode.startsWith('human_vs_human')) {
+    const roles1v1 = ['Affirmative', 'Negative']
+    const roles3v3 = ['Prime Minister', 'Leader of Opposition', 'Deputy Prime Minister', 'Deputy Leader of Opposition', 'Government Whip', 'Opposition Whip']
+    if (session.mode === 'human_vs_human_1v1') currentRole = roles1v1[speakerIndex] || 'Speaker'
+    if (session.mode === 'human_vs_human_3v3') currentRole = roles3v3[speakerIndex] || 'Speaker'
   }
 
   return (
@@ -39,8 +55,20 @@ export default async function RecordPage({ params }: { params: { id: string } })
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center">
-        <RecordingPanel sessionId={session.id} userId={user.id} />
+      <div className="flex-1 grid md:grid-cols-2 gap-8 items-start">
+        <div className="flex flex-col gap-6">
+          {speakerIndex === 0 && <PrepTimer initialMinutes={15} />}
+          <RecordingPanel 
+            sessionId={session.id} 
+            userId={user.id} 
+            speakerIndex={speakerIndex}
+            speakerRole={currentRole}
+            maxSpeakers={maxSpeakers}
+          />
+        </div>
+        <div className="h-[500px] md:h-full pb-8">
+          <FlowSheet />
+        </div>
       </div>
     </main>
   )

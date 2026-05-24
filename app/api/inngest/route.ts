@@ -1,8 +1,12 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
-import { helloFn } from "@/lib/inngest/functions";
+import { helloFn, analyzeSessionFn, sweepStuckSessionsFn } from "@/lib/inngest/functions";
 
-export const { GET, POST, PUT } = serve({
+const handler = serve({
   client: inngest,
-  functions: [helloFn],
+  functions: [helloFn, analyzeSessionFn, sweepStuckSessionsFn],
 });
+
+export const GET = handler as any;
+export const POST = handler as any;
+export const PUT = handler as any;

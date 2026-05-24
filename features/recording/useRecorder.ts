@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react'
 
 export function useRecorder() {
-  const [status, setStatus] = useState<'idle' | 'recording' | 'stopped'>('idle')
+  const [status, setStatus] = useState<'idle' | 'recording' | 'paused' | 'stopped'>('idle')
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
   const mediaRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
 
   const start = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setStream(mediaStream)
+      const recorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' })
       chunksRef.current = []
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
@@ -31,8 +33,35 @@ export function useRecorder() {
       mediaRef.current.stop()
       mediaRef.current.stream.getTracks().forEach(t => t.stop())
     }
+    setStream(null)
     setStatus('stopped')
   }
 
-  return { status, audioBlob, start, stop }
+  const pause = () => {
+    if (mediaRef.current && mediaRef.current.state === 'recording') {
+      mediaRef.current.pause()
+      setStatus('paused')
+    }
+  }
+
+  const resume = () => {
+    if (mediaRef.current && mediaRef.current.state === 'paused') {
+      mediaRef.current.resume()
+      setStatus('recording')
+    }
+  }
+
+  const discard = () => {
+    if (mediaRef.current && mediaRef.current.state !== 'inactive') {
+      mediaRef.current.onstop = null // prevent blob creation
+      mediaRef.current.stop()
+      mediaRef.current.stream.getTracks().forEach(t => t.stop())
+    }
+    chunksRef.current = []
+    setAudioBlob(null)
+    setStream(null)
+    setStatus('idle')
+  }
+
+  return { status, audioBlob, start, stop, pause, resume, discard, stream }
 }

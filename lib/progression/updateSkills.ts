@@ -46,11 +46,45 @@ export async function updateSkills(userId: string, sessionId: string, newScores:
     dna_delta: delta
   })
 
-  // 4. Update the user profile with the new debate_dna
+  // 4. Update the user profile with gamification stats
+  const { data: profile } = await supabase.from('profiles').select('xp, current_streak, last_debate_date, total_speeches').eq('id', userId).single()
+  
+  let newXp = (profile?.xp || 0) + 100 // 100 XP per speech
+  let newTotal = (profile?.total_speeches || 0) + 1
+  let currentStreak = profile?.current_streak || 0
+  let lastDate = profile?.last_debate_date
+  
+  const today = new Date().toISOString().split('T')[0]
+  if (lastDate === today) {
+    // Already debated today, streak stays the same
+  } else {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    if (lastDate === yesterday) {
+      currentStreak += 1
+    } else {
+      currentStreak = 1
+    }
+  }
+
   await supabase
     .from('profiles')
-    .update({ debate_dna: averages })
+    .update({ 
+      debate_dna: averages,
+      xp: newXp,
+      total_speeches: newTotal,
+      current_streak: currentStreak,
+      last_debate_date: today
+    })
     .eq('id', userId)
+
+  // 5. Update user_skills relational table for Leaderboards
+  const skillRows = keys.map(k => ({
+    user_id: userId,
+    skill_name: k,
+    score: averages[k]
+  }))
+  
+  await supabase.from('user_skills').upsert(skillRows, { onConflict: 'user_id, skill_name' })
 
   return averages
 }

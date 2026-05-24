@@ -7,6 +7,9 @@ create table if not exists profiles (
   display_name text,
   debate_dna jsonb default '{}',
   total_speeches int default 0,
+  xp int default 0,
+  current_streak int default 0,
+  last_debate_date date,
   created_at timestamptz default now(),
   is_admin boolean not null default false
 );
@@ -43,8 +46,12 @@ create table if not exists motions (
   category text,      -- 'policy' | 'value' | 'fact'
   difficulty int,     -- 1-5
   topic_domain text,  -- 'education' | 'tech' | 'politics' etc
-  format text default 'BP'
+  format text default 'BP',
+  is_motion_of_the_day boolean default false,
+  motd_date date
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_motd_per_date ON motions (motd_date) WHERE is_motion_of_the_day = true;
 
 create table if not exists debate_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -53,6 +60,7 @@ create table if not exists debate_sessions (
   role text not null,   -- 'PM' | 'LO' | 'DPM' etc
   format text default 'BP',
   status text default 'pending',
+  mode text default 'solo_vs_ai',
   created_at timestamptz default now()
 );
 
@@ -73,12 +81,15 @@ ON CONFLICT DO NOTHING;
 -- PHASE 3: Transcripts
 create table if not exists transcripts (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid references debate_sessions(id) on delete cascade unique,
+  session_id uuid references debate_sessions(id) on delete cascade,
+  speaker_role text,
+  speaker_index int default 0,
   raw_text text not null,
   word_count int,
   duration_seconds int,
   segments jsonb,   -- [{start, end, text}]
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique (session_id, speaker_index)
 );
 
 alter table transcripts enable row level security;
@@ -90,15 +101,18 @@ create policy "Users own their transcripts"
 -- PHASE 4: Analyses
 create table if not exists analyses (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid references debate_sessions(id) on delete cascade unique,
-  scores jsonb not null,       -- {structure, logic, rhetoric, rebuttal, weighing, overall}
-  structural_segments jsonb,   -- labeled speech segments
-  arguments jsonb,             -- extracted claims and arguments
+  session_id uuid references debate_sessions(id) on delete cascade,
+  speaker_role text,
+  speaker_index int default 0,
+  scores jsonb not null,
+  structural_segments jsonb,
+  arguments jsonb,
   tone text,
   archetype text,
-  coaching jsonb,              -- {strengths[], weaknesses[], drills[], improvements[]}
+  coaching jsonb,
   rfd_summary text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique (session_id, speaker_index)
 );
 
 alter table analyses enable row level security;
@@ -124,16 +138,48 @@ create policy "Admins can access audit logs"
   using ((select is_admin from profiles where id = auth.uid()) = true);
 
 
+-- PHASE 5: Relational Skills and Leaderboard
+create table if not exists user_skills (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade,
+  skill_name text not null check (skill_name in ('structure', 'logic', 'rhetoric', 'rebuttal', 'weighing', 'overall')),
+  score numeric not null default 0,
+  updated_at timestamptz default now(),
+  unique (user_id, skill_name)
+);
+
+alter table user_skills enable row level security;
+-- Leaderboards need public read access to skills
+create policy "Anyone can read user_skills" on user_skills for select using (true);
+create policy "Users can update their own user_skills" on user_skills for update using (auth.uid() = user_id);
+create policy "Users can insert their own user_skills" on user_skills for insert with check (auth.uid() = user_id);
+
+/* 
+-- RUN THIS MANUALLY IN SUPABASE SQL EDITOR TO MIGRATE EXISTING JSONB DATA
+insert into user_skills (user_id, skill_name, score)
+select 
+  p.id,
+  skill.key,
+  (p.debate_dna->>skill.key)::numeric
+from profiles p
+cross join jsonb_object_keys(p.debate_dna) as skill(key)
+where p.debate_dna is not null and p.debate_dna != '{}'
+on conflict (user_id, skill_name) do update 
+set score = excluded.score, updated_at = now();
+*/
+
+
 -- PHASE 6: Ballots
 create table if not exists ballots (
   id uuid primary key default gen_random_uuid(),
-  session_id uuid references debate_sessions(id) on delete cascade unique,
+  session_id uuid references debate_sessions(id) on delete cascade,
   speaker_score int,
   ranking text,
   rfd text,
   clash_evaluation jsonb,
   judge_persona text default 'technical',
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique (session_id, speaker_index)
 );
 
 alter table ballots enable row level security;
@@ -169,12 +215,14 @@ create policy "Admins can insert elite examples"
 create table if not exists fact_checks (
   id uuid primary key default gen_random_uuid(),
   session_id uuid references debate_sessions(id) on delete cascade,
+  speaker_index int default 0,
   claim text not null,
   verdict text,
   confidence int,
   explanation text,
   sources jsonb,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique (session_id, speaker_index)
 );
 
 alter table fact_checks enable row level security;
@@ -217,3 +265,23 @@ alter table skill_snapshots enable row level security;
 create policy "Users own their skill snapshots"
   on skill_snapshots for all
   using (auth.uid() = user_id);
+
+-- PHASE 9: 1v1 Arena State Persistence
+create table if not exists arena_turns (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid references debate_sessions(id) on delete cascade,
+  role text not null check (role in ('user', 'ai')),
+  text text not null,
+  created_at timestamptz default now()
+);
+
+alter table arena_turns enable row level security;
+create policy "Users own their arena turns"
+  on arena_turns for all
+  using (
+    exists (
+      select 1 from debate_sessions ds
+      where ds.id = arena_turns.session_id
+      and ds.user_id = auth.uid()
+    )
+  );

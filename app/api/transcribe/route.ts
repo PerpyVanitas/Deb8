@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { sessionId, path } = await req.json()
+    const { sessionId, path, speakerRole = 'Speaker', speakerIndex = 0 } = await req.json()
 
     // 1. Download from storage
     const { data: blob, error: downloadError } = await supabase.storage
@@ -41,11 +41,13 @@ export async function POST(req: Request) {
       .from('transcripts')
       .upsert({
         session_id: sessionId,
+        speaker_role: speakerRole,
+        speaker_index: speakerIndex,
         raw_text: text,
         word_count: wordCount,
         duration_seconds: Math.round(duration),
         segments: segments
-      }, { onConflict: 'session_id' })
+      }, { onConflict: 'session_id, speaker_index' })
 
     if (insertError) throw insertError
 
