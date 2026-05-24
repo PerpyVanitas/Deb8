@@ -26,5 +26,5 @@ Be helpful, analytical, and objective. If they make a good point appealing a sco
     messages,
   })
 
-  return result.toDataStreamResponse()
+  return result.toTextStreamResponse()
 }
