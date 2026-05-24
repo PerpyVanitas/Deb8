@@ -83,7 +83,6 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
 
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [loadedMotions, setLoadedMotions] = useState<Motion[]>(motions)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(motions.length === 10)
   const [isFetchingMore, setIsFetchingMore] = useState(false)

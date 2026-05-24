@@ -16,7 +16,7 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
   })
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Apply rate limiting specifically to expensive API routes
   if (request.nextUrl.pathname.startsWith('/api/') && ratelimit) {
     const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1'

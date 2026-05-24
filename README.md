@@ -33,13 +33,13 @@ Deb8 supports various international debate formats (British Parliamentary, Asian
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/deb8.git
-   cd deb8
+   git clone https://github.com/PerpyVanitas/Deb8.git
+   cd Deb8
    ```
 
 2. **Install Dependencies**
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. **Environment Setup**
@@ -58,7 +58,7 @@ Deb8 supports various international debate formats (British Parliamentary, Asian
 
 5. **Run the Development Server**
    ```bash
-   npm run dev
+   pnpm run dev
    ```
    Navigate to `http://localhost:3000` to start practicing!
 
