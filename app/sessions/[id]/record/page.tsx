@@ -38,6 +38,10 @@ export default async function RecordPage({ params, searchParams }: { params: Pro
     if (session.mode === 'human_vs_human_3v3') currentRole = roles3v3[speakerIndex] || 'Speaker'
   }
 
+  // Set time limit
+  const isMicroDrill = session.format?.includes('1-Minute Micro Drill')
+  const timeLimitSeconds = isMicroDrill ? 60 : 420
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12 flex flex-col min-h-[calc(100vh-4rem)]">
       <div className="mb-8">
@@ -64,6 +68,7 @@ export default async function RecordPage({ params, searchParams }: { params: Pro
             speakerIndex={speakerIndex}
             speakerRole={currentRole}
             maxSpeakers={maxSpeakers}
+            timeLimitSeconds={timeLimitSeconds}
           />
         </div>
         <div className="h-[500px] md:h-full pb-8">

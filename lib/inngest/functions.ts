@@ -45,6 +45,7 @@ export const analyzeSessionFn = inngest.createFunction(
             motion: session.motions.text,
             role: roleStr,
             wordCount: transcript.word_count,
+            durationSeconds: transcript.duration_seconds,
             format: session.format,
             harshness: harshness
           }),

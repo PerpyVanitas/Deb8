@@ -15,12 +15,14 @@ import { useRouter, useSearchParams } from "next/navigation"
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
+import { JargonText } from "@/components/ui/jargon-text"
 
 type AnalysisProps = {
   analysis: any
+  wpm?: number | null
 }
 
-export function AnalysisResults({ analysis }: AnalysisProps) {
+export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const currentTab = searchParams.get('tab') || 'overview'
@@ -194,7 +196,7 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
                   {coaching?.strengths?.map((s: string, i: number) => (
                     <li key={i} className="flex gap-3 text-sm leading-relaxed items-start">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                      <span>{s}</span>
+                      <span className="w-full"><JargonText>{s}</JargonText></span>
                     </li>
                   ))}
                 </ul>
@@ -212,7 +214,7 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
                   {coaching?.weaknesses?.map((w: string, i: number) => (
                     <li key={i} className="flex gap-3 text-sm leading-relaxed items-start">
                       <div className="w-2 h-2 rounded-full bg-rose-500 mt-2 shrink-0" />
-                      <span>{w}</span>
+                      <span className="w-full"><JargonText>{w}</JargonText></span>
                     </li>
                   ))}
                 </ul>
@@ -232,7 +234,9 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
                 <div className="flex flex-col gap-1 p-3 rounded-md bg-background border">
                   <span className="text-xs text-muted-foreground uppercase font-semibold">Pacing</span>
                   <span className="text-sm font-medium flex items-center gap-2">
-                    <Waves className="w-4 h-4 text-blue-500" /> {coaching.stylistics.pace}
+                    <Waves className="w-4 h-4 text-blue-500" /> 
+                    {coaching.stylistics.pace}
+                    {wpm ? ` (${wpm} WPM)` : ''}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-md bg-background border">
@@ -242,7 +246,7 @@ export function AnalysisResults({ analysis }: AnalysisProps) {
                   </span>
                 </div>
                 <div className="sm:col-span-3 mt-2 text-sm leading-relaxed text-foreground/90">
-                  <strong>Coach's Note:</strong> {coaching.stylistics.feedback}
+                  <strong>Coach's Note:</strong> <JargonText>{coaching.stylistics.feedback}</JargonText>
                 </div>
               </CardContent>
             </Card>

@@ -43,6 +43,7 @@ export async function analyzeDebateSpeech({
   motion, 
   role, 
   wordCount,
+  durationSeconds,
   format,
   harshness = "Standard"
 }: { 
@@ -50,6 +51,7 @@ export async function analyzeDebateSpeech({
   motion: string, 
   role: string, 
   wordCount: number,
+  durationSeconds?: number,
   format?: string,
   harshness?: string
 }) {
@@ -61,6 +63,9 @@ export async function analyzeDebateSpeech({
     "Ruthless": "Be brutally honest, hyper-critical, and highly pedantic like an elite World Universities Debating Championship judge. Rip apart every logical flaw, gap in weighing, and stylistic error. Do not sugarcoat anything. Deflate scores; an 8/10 from you means perfection."
   }[harshness as "Gentle" | "Standard" | "Ruthless"] || "Be objective and realistic.";
 
+  const wpm = durationSeconds ? Math.round(wordCount / (durationSeconds / 60)) : null;
+  const wpmContext = wpm ? `The debater spoke at exactly ${wpm} Words Per Minute (WPM). Standard conversational pace is ~150 WPM. Competitive debate pace is 200-250 WPM.` : '';
+
   const model = genai.getGenerativeModel({ 
     model: 'gemini-2.0-flash',
     systemInstruction: `You are an elite competitive debate coach and adjudicator. Analyze the provided speech transcript.
@@ -70,6 +75,8 @@ Their role is: ${role}.
 
 **AI Harshness Profile: ${harshness} Coach**
 ${harshnessInstructions}
+
+${wpmContext}
 
 **The "Bo Seo Benchmark" (Realistic Human Scoring Ceiling):**
 When grading, remember this is a HUMAN speaking spontaneously. Do NOT compare them to an omniscient AI that can compute a million facts per second. A score of 10/10 means they performed at the level of a World Champion (like Bo Seo) in a live setting, NOT that they achieved mathematical perfection. Grade realistically on a human curve. 
@@ -84,6 +91,7 @@ Return a structured JSON object containing:
 - tone: string (e.g. 'Aggressive', 'Analytical', 'Persuasive', 'Defensive')
 - archetype: string (e.g. 'The Technical Logician', 'The Storyteller', 'The Brawler')
 - coaching: { strengths: string[], weaknesses: string[], drills: string[], improvements: string[], stylistics: { pace: string, filler_words: number, feedback: string } }
+  *Note on stylistics: Count the exact number of filler words (um, ah, like, basically, literally) in the transcript. Use the provided WPM to judge pace.*
 - rfd_summary: 2-3 sentence adjudicator Reason for Decision
 
 IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.` 

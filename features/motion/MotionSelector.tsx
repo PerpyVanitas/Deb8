@@ -53,16 +53,22 @@ const FORMAT_ROLES: Record<string, { value: string, label: string }[]> = {
   "General": [
     { value: "Affirmative", label: "Affirmative" },
     { value: "Negative", label: "Negative" },
+  ],
+  "1-Minute Micro Drill": [
+    { value: "Affirmative", label: "Affirmative" },
+    { value: "Negative", label: "Negative" },
   ]
 }
 
 export function MotionSelector({ motions }: { motions: Motion[] }) {
   const router = useRouter()
-  const [selectedMotionId, setSelectedMotionId] = useState<string>("")
-  const [format, setFormat] = useState<string>("BP")
-  const [role, setRole] = useState<string>("PM")
-  const [is1v1, setIs1v1] = useState(true)
-  const [harshness, setHarshness] = useState<string>("Standard")
+  const [loadedMotions, setLoadedMotions] = useState<Motion[]>(motions)
+  const [selectedMotionId, setSelectedMotionId] = useState<string | null>(null)
+  const [format, setFormat] = useState("BP")
+  const [role, setRole] = useState("PM")
+  const [harshness, setHarshness] = useState("Standard")
+  const [weighing, setWeighing] = useState("None")
+  const [is1v1, setIs1v1] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -134,7 +140,7 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
         body: JSON.stringify({
           motion_id: selectedMotionId,
           role,
-          format: is1v1 ? `${format}_1v1` : format
+          format: `${is1v1 ? `${format}_1v1` : format}${weighing !== "None" ? ` (Optimize for: ${weighing})` : ""}`
         })
       })
 
@@ -183,6 +189,7 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
                 <SelectItem value="AP">Asian Parliamentary</SelectItem>
                 <SelectItem value="Oregon-Oxford">Oregon-Oxford</SelectItem>
                 <SelectItem value="General">General Free-Sparring</SelectItem>
+                <SelectItem value="1-Minute Micro Drill">1-Minute Micro Drill</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -236,6 +243,32 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
                 <SelectItem value="Gentle">Gentle Coach</SelectItem>
                 <SelectItem value="Standard">Standard Judge</SelectItem>
                 <SelectItem value="Ruthless">Ruthless Critic</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-1">
+              Weighing Mechanism
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="w-[200px] text-xs leading-relaxed">Tell the AI judge what metric to optimize your score against.</p>
+                </TooltipContent>
+              </Tooltip>
+            </label>
+            <Select value={weighing} onValueChange={setWeighing}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Weighing" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="None">Standard</SelectItem>
+                <SelectItem value="Net Lives Saved">Net Lives Saved</SelectItem>
+                <SelectItem value="Economic Growth">Economic Growth</SelectItem>
+                <SelectItem value="Vulnerable Actors">Vulnerable Actors</SelectItem>
+                <SelectItem value="Principled Fairness">Principled Fairness</SelectItem>
               </SelectContent>
             </Select>
           </div>

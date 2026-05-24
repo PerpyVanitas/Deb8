@@ -7,6 +7,7 @@ import { AnalysisLoader } from "@/features/analysis/AnalysisLoader"
 import { BallotView } from "@/features/analysis/BallotView"
 import { FactCheckList } from "@/features/analysis/FactCheckList"
 import { BenchmarkingUI } from "@/features/benchmarking/BenchmarkingUI"
+import { CoachChatbot } from "@/features/analysis/CoachChatbot"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,16 +29,18 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
     redirect("/dashboard")
   }
 
-  // Fetch all analyses for this session
-  const [analysisRes, ballotRes, factChecksRes] = await Promise.all([
+  // Fetch all analyses and transcripts for this session
+  const [analysisRes, ballotRes, factChecksRes, transcriptRes] = await Promise.all([
     supabase.from("analyses").select("*").eq("session_id", resolvedParams.id).order('speaker_index', { ascending: true }),
     supabase.from("ballots").select("*").eq("session_id", resolvedParams.id),
-    supabase.from("fact_checks").select("*").eq("session_id", resolvedParams.id)
+    supabase.from("fact_checks").select("*").eq("session_id", resolvedParams.id),
+    supabase.from("transcripts").select("speaker_index, word_count, duration_seconds").eq("session_id", resolvedParams.id)
   ])
 
   const analyses = analysisRes.data || []
   const ballots = ballotRes.data || []
   const factChecks = factChecksRes.data || []
+  const transcripts = transcriptRes.data || []
   const hasAnalysis = analyses.length > 0
 
   return (
@@ -81,6 +84,12 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           {analyses.map((analysis) => {
             const speakerFactChecks = factChecks.filter(fc => fc.speaker_index === analysis.speaker_index)
             const speakerBallot = ballots.find(b => b.speaker_index === analysis.speaker_index)
+            const speakerTranscript = transcripts.find(t => t.speaker_index === analysis.speaker_index)
+            
+            let wpm = null
+            if (speakerTranscript?.duration_seconds && speakerTranscript?.word_count) {
+              wpm = Math.round(speakerTranscript.word_count / (speakerTranscript.duration_seconds / 60))
+            }
             
             return (
               <TabsContent key={analysis.speaker_index} value={`speaker-${analysis.speaker_index}`} className="mt-0">
@@ -95,7 +104,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
                   </TabsList>
 
                   <TabsContent value="scorecard" className="space-y-8 animate-in fade-in-50 duration-500">
-                    <AnalysisResults analysis={analysis} />
+                    <AnalysisResults analysis={analysis} wpm={wpm} />
                     {analysis.elite_benchmark && <BenchmarkingUI benchmark={analysis.elite_benchmark} />}
                     {speakerBallot && <BallotView ballot={speakerBallot} />}
                   </TabsContent>
@@ -110,6 +119,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
                     )}
                   </TabsContent>
                 </Tabs>
+                <CoachChatbot analysis={analysis} motion={session.motions?.text || ''} />
               </TabsContent>
             )
           })}

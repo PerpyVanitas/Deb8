@@ -16,13 +16,15 @@ export function RecordingPanel({
   userId,
   speakerIndex = 0,
   speakerRole = 'Speaker',
-  maxSpeakers = 1
+  maxSpeakers = 1,
+  timeLimitSeconds = 420
 }: { 
   sessionId: string; 
   userId: string;
   speakerIndex?: number;
   speakerRole?: string;
   maxSpeakers?: number;
+  timeLimitSeconds?: number;
 }) {
   const { status, audioBlob, start, stop, pause, resume, discard, stream, clearAutosave } = useRecorder()
   const [seconds, setSeconds] = useState(0)
@@ -37,9 +39,9 @@ export function RecordingPanel({
     if (status === 'recording') {
       timerRef.current = setInterval(() => {
         setSeconds(s => {
-          if (s >= 420) { // 7 minutes
+          if (s >= timeLimitSeconds) {
             stop()
-            return 420
+            return timeLimitSeconds
           }
           return s + 1
         })
@@ -75,7 +77,7 @@ export function RecordingPanel({
       const res = await fetch('/api/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, path, speakerRole, speakerIndex })
+        body: JSON.stringify({ sessionId, path, speakerRole, speakerIndex, duration: seconds })
       })
       if (!res.ok) throw new Error("Transcription failed")
       
@@ -109,8 +111,8 @@ export function RecordingPanel({
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  const getProgressValue = () => (seconds / 420) * 100
-  const isWarning = seconds >= 390 // 6:30
+  const getProgressValue = () => (seconds / timeLimitSeconds) * 100
+  const isWarning = seconds >= timeLimitSeconds - 30 // Warn in the last 30 seconds
   
   return (
     <Card className="w-full max-w-md mx-auto overflow-hidden">
