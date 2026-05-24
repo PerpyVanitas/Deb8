@@ -2,6 +2,11 @@
 
 This file is a living document that tracks the state, architecture, and current goals of the Deb8 application. It serves as the primary technical onboarding document for any AI assistants or developers working on the repository.
 
+- **Fast and Focused**: Optimize for sub-2-second TTS generation. If it feels slow, it's broken.
+- **Strict Constraints**: DO NOT implement any features requiring camera interaction or video recording. The platform is strictly audio and text-based.
+
+## Tech Stack
+
 ---
 
 ## 1. Project Overview
@@ -37,6 +42,10 @@ The application is built to handle complex debate formats such as BP (British Pa
 ### Epic 2: Automated E2E Testing
 - Initialized Playwright testing framework (`tests/auth.spec.ts`).
 - Created a GitHub Actions CI/CD workflow (`playwright.yml`) to automatically test Vercel preview environments before merging.
+- [x] Epic 4: 1v1 Arena & Agentic Opponent (Completed)
+- [x] Epic 5: The UI/UX Polish & Resilience (Completed)
+- [x] Epic 6: The Elite Debate Coach & Drills (Completed)
+- [ ] Epic 7: Performance & Infrastructure scaling
 
 ### Epic 3: Gamification & Polish
 - **Framer Motion**: Global `template.tsx` adds cross-page slide/fade animations.
