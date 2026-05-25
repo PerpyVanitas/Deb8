@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useChat } from "@ai-sdk/react"
-import { type UIMessage, HttpChatTransport } from "ai"
+import { type UIMessage, DefaultChatTransport } from "ai"
 import { MessageCircle, X, Send, Bot, User, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +15,7 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
   const [input, setInput] = useState("")
 
   const { messages, sendMessage, status } = useChat({
-    transport: new HttpChatTransport({
+    transport: new DefaultChatTransport({
       api: '/api/chat',
       body: { analysis, motion }
     })
@@ -31,7 +31,7 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
     e.preventDefault()
     if (!input.trim() || isLoading) return
     
-    sendMessage(input)
+    sendMessage({ parts: [{ type: 'text', text: input }] })
     setInput("")
   }
 
