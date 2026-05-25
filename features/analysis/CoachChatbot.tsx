@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useChat } from "@ai-sdk/react"
-import { type UIMessage } from "ai"
+import { type UIMessage, HttpChatTransport } from "ai"
 import { MessageCircle, X, Send, Bot, User, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +15,10 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
   const [input, setInput] = useState("")
 
   const { messages, sendMessage, status } = useChat({
-    api: '/api/chat',
-    body: { analysis, motion }
+    transport: new HttpChatTransport({
+      api: '/api/chat',
+      body: { analysis, motion }
+    })
   })
   
   const isLoading = status === 'submitted' || status === 'streaming'
@@ -29,9 +31,7 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
     e.preventDefault()
     if (!input.trim() || isLoading) return
     
-    sendMessage({ 
-      messages: [...messages, { id: crypto.randomUUID(), role: 'user', content: input } as UIMessage] 
-    })
+    sendMessage(input)
     setInput("")
   }
 
@@ -83,7 +83,7 @@ export function CoachChatbot({ analysis, motion }: { analysis: any, motion: stri
                   ? 'bg-primary text-primary-foreground rounded-tr-sm' 
                   : 'bg-muted text-foreground rounded-tl-sm'
               }`}>
-                {m.content}
+                {m.parts?.map((p, i) => p.type === 'text' ? <span key={i}>{p.text}</span> : null)}
               </div>
             </div>
           ))}
