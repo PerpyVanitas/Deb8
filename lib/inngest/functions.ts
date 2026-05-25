@@ -34,51 +34,62 @@ export const analyzeSessionFn = inngest.createFunction(
       return { session: sessionRes.data, transcripts: transcriptsRes.data }
     });
 
-    // 2. Parallel Gemini tasks
-    // 2. Parallel Gemini tasks for ALL transcripts
-    const analysisResults = await step.run("gemini-analysis", async () => {
-      const results = await Promise.all(transcripts.map(async (transcript: any) => {
-        const roleStr = transcript.speaker_role || session.role
-        const [a, b, fc] = await Promise.all([
-          analyzeDebateSpeech({
-            transcript: transcript.raw_text,
-            motion: session.motions.text,
-            role: roleStr,
-            wordCount: transcript.word_count,
-            durationSeconds: transcript.duration_seconds,
-            format: session.format,
-            harshness: harshness
-          }),
-          generateBallot({
-            transcript: transcript.raw_text,
-            motion: session.motions.text,
-            role: roleStr,
-            format: session.format
-          }),
-          generateFactChecks({
-            transcript: transcript.raw_text,
-            motion: session.motions.text
-          })
-        ]);
-        return { 
-          analysis: a, 
-          ballot: b, 
-          factChecks: fc, 
-          speakerIndex: transcript.speaker_index,
-          speakerRole: roleStr
-        };
-      }));
-      return results;
-    });
+    // 2. Sequential Gemini tasks with sleeps to respect Free Tier 15 RPM limit
+    const analysisResults = [];
+    for (let i = 0; i < transcripts.length; i++) {
+      const transcript = transcripts[i];
+      const roleStr = transcript.speaker_role || session.role;
+      
+      const a = await step.run(`analyze-speech-${i}`, async () => {
+        return await analyzeDebateSpeech({
+          transcript: transcript.raw_text,
+          motion: session.motions.text,
+          role: roleStr,
+          wordCount: transcript.word_count,
+          durationSeconds: transcript.duration_seconds,
+          format: session.format,
+          harshness: harshness
+        });
+      });
+      await step.sleep(`sleep-after-analyze-${i}`, "4s");
+      
+      const b = await step.run(`generate-ballot-${i}`, async () => {
+        return await generateBallot({
+          transcript: transcript.raw_text,
+          motion: session.motions.text,
+          role: roleStr,
+          format: session.format
+        });
+      });
+      await step.sleep(`sleep-after-ballot-${i}`, "4s");
+      
+      const fc = await step.run(`generate-factchecks-${i}`, async () => {
+        return await generateFactChecks({
+          transcript: transcript.raw_text,
+          motion: session.motions.text
+        });
+      });
+      await step.sleep(`sleep-after-fc-${i}`, "4s");
+      
+      analysisResults.push({
+        analysis: a,
+        ballot: b,
+        factChecks: fc,
+        speakerIndex: transcript.speaker_index,
+        speakerRole: roleStr
+      });
+    }
 
-    // 3. Benchmarking
-    // 3. Benchmarking
-    const benchmarkResults = await step.run("generate-benchmark", async () => {
-      return await Promise.all(analysisResults.map(async (res: any) => {
-        const benchmark = await generateAutomatedBenchmark(res.analysis, session.motions.text);
-        return { speakerIndex: res.speakerIndex, benchmark };
-      }));
-    });
+    // 3. Benchmarking (also sequential with sleeps)
+    const benchmarkResults = [];
+    for (let i = 0; i < analysisResults.length; i++) {
+      const res = analysisResults[i];
+      const benchmark = await step.run(`generate-benchmark-${i}`, async () => {
+        return await generateAutomatedBenchmark(res.analysis, session.motions.text);
+      });
+      await step.sleep(`sleep-after-benchmark-${i}`, "4s");
+      benchmarkResults.push({ speakerIndex: res.speakerIndex, benchmark });
+    }
 
     // 4. Save to DB
     // 4. Save to DB
