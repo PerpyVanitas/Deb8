@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { inngest } from "./client";
 import { createClient } from '@supabase/supabase-js'
-import { analyzeDebateSpeech, generateBallot, generateFactChecks, AnalysisResult, BallotResult, FactCheck } from '@/lib/gemini/analyze'
+import { analyzeSpeaker, mapUnifiedToLegacy } from '@/lib/gemini/unified'
 import { generateAutomatedBenchmark } from '@/lib/gemini/benchmarking'
 import { updateSkills } from '@/lib/progression/updateSkills'
 import { revalidatePath } from 'next/cache'
@@ -40,11 +40,11 @@ export const analyzeSessionFn = inngest.createFunction(
         return { session: sessionRes.data, transcripts: transcriptsRes.data }
       });
 
-      // 2. Sequential Gemini tasks with sleeps to respect Free Tier 15 RPM limit
+      // 2. Sequential Gemini tasks with a single unified call per speaker
       const analysisResults: {
-        analysis: AnalysisResult,
-        ballot: BallotResult,
-        factChecks: FactCheck[],
+        analysis: any,
+        ballot: any,
+        factChecks: any[],
         speakerIndex: number,
         speakerRole: string
       }[] = [];
@@ -64,48 +64,33 @@ export const analyzeSessionFn = inngest.createFunction(
         throw new Error('Gemini rate limit exceeded. Please retry later.')
       }
 
+      const INTER_SPEAKER_DELAY_MS = 5000
+
       for (let i = 0; i < transcripts.length; i++) {
         const transcript = transcripts[i];
         const roleStr = transcript.speaker_role || session.role;
 
-        const a = await runGeminiStep(`analyze-speech-${i}`, async () => {
-          return await analyzeDebateSpeech({
-            transcript: transcript.raw_text,
-            motion: session.motions.text,
-            role: roleStr,
-            wordCount: transcript.word_count,
-            durationSeconds: transcript.duration_seconds,
-            format: session.format,
-            harshness: harshness
-          });
+        const unified = await runGeminiStep(`analyze-speaker-${i}`, async () => {
+          return await analyzeSpeaker(
+            transcript.raw_text,
+            roleStr,
+            session.format
+          )
         });
-        await step.sleep(`sleep-after-analyze-${i}`, "5s");
 
-        const b = await runGeminiStep(`generate-ballot-${i}`, async () => {
-          return await generateBallot({
-            transcript: transcript.raw_text,
-            motion: session.motions.text,
-            role: roleStr,
-            format: session.format
-          });
-        });
-        await step.sleep(`sleep-after-ballot-${i}`, "5s");
-
-        const fc = await runGeminiStep(`generate-factchecks-${i}`, async () => {
-          return await generateFactChecks({
-            transcript: transcript.raw_text,
-            motion: session.motions.text
-          });
-        });
-        await step.sleep(`sleep-after-fc-${i}`, "5s");
+        const { analysis, ballot, factChecks } = mapUnifiedToLegacy(unified)
 
         analysisResults.push({
-          analysis: a,
-          ballot: b,
-          factChecks: fc,
+          analysis,
+          ballot,
+          factChecks,
           speakerIndex: transcript.speaker_index,
           speakerRole: roleStr
         });
+
+        if (i < transcripts.length - 1) {
+          await step.sleep(`sleep-after-speaker-${i}`, `${INTER_SPEAKER_DELAY_MS}ms`)
+        }
       }
 
       // 3. Benchmarking (also sequential with sleeps)

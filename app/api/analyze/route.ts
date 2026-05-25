@@ -23,6 +23,23 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { sessionId, harshness } = analysisRequestSchema.parse(body)
 
+    const { data: transcripts, error: transcriptError } = await supabase
+      .from('transcripts')
+      .select('speaker_index')
+      .eq('session_id', sessionId)
+
+    if (transcriptError) throw transcriptError
+
+    const FREE_TIER_SAFE_LIMIT = 10
+    if ((transcripts?.length || 0) > FREE_TIER_SAFE_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `This session has ${transcripts?.length || 0} speakers, which may exceed Gemini free-tier capacity. Try reducing the session size or upgrading your model plan.`
+        },
+        { status: 422 }
+      )
+    }
+
     const { data: session, error: sessionError } = await supabase
       .from('debate_sessions')
       .select('status')
