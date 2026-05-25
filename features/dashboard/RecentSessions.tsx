@@ -25,7 +25,7 @@ export function RecentSessions({ initialSessions, userId }: { initialSessions: a
 
   return (
     <div className="w-full">
-      <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
+      <div className="flex flex-col gap-3">
         {sessions && sessions.length > 0 ? (
           sessions.map((s: any) => (
             <Link
