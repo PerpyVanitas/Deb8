@@ -1,11 +1,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
-// Create a singleton instance so we only load WASM once per session
 let ffmpeg: FFmpeg | null = null
+let loadPromise: Promise<FFmpeg> | null = null
 
 export async function loadFFmpeg() {
-  if (ffmpeg) return ffmpeg
+  if (ffmpeg?.loaded) return ffmpeg
+  if (loadPromise) return loadPromise
 
   ffmpeg = new FFmpeg()
 
@@ -14,10 +15,21 @@ export async function loadFFmpeg() {
   // NOTE: We deliberately use the standard single-threaded core.
   // Using the multi-threaded core requires SharedArrayBuffer, 
   // which forces strict COOP/COEP headers and breaks Supabase OAuth.
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  })
+  loadPromise = (async () => {
+    await ffmpeg!.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    })
+    return ffmpeg!
+  })()
+
+  try {
+    await loadPromise
+  } catch (err) {
+    ffmpeg = null
+    loadPromise = null
+    throw err
+  }
 
   return ffmpeg
 }
