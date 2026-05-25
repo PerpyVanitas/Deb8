@@ -70,7 +70,7 @@ export default async function DashboardPage() {
         <SkillTree debateDna={profile?.debate_dna} history={history || []} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 mb-8">
         {motd ? (
           <Card className="border-primary/50 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-2">
@@ -112,17 +112,17 @@ export default async function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent sessions</CardTitle>
-            <CardDescription>Your last 5 practice rounds.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RecentSessions initialSessions={sessions || []} userId={user.id} />
-          </CardContent>
-        </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent sessions</CardTitle>
+          <CardDescription>Your last 5 practice rounds.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RecentSessions initialSessions={sessions || []} userId={user.id} />
+        </CardContent>
+      </Card>
     </main>
   )
 }
