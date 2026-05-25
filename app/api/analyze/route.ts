@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { aiRateLimit } from '@/lib/rate-limit'
@@ -41,10 +42,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json(analysisResponseSchema.parse({ success: true, queued: true }))
   } catch (error: any) {
+    Sentry.captureException(error)
     console.error("Analyze Route Error:", error)
     if (error?.name === 'ZodError') {
       return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 })
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error?.message ?? 'Internal server error' }, { status: 500 })
   }
 }

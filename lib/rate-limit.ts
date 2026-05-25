@@ -15,6 +15,14 @@ export const aiRateLimit = hasRedis ? new Ratelimit({
   prefix: "@deb8/ai-ratelimit",
 }) : dummyRatelimit;
 
+// Global Gemini free-tier cap: 15 requests per 60 seconds across all Gemini calls
+export const geminiRateLimit = hasRedis ? new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(15, "60 s"),
+  analytics: true,
+  prefix: "@deb8/gemini-ratelimit",
+}) : dummyRatelimit;
+
 // Transcription requires more compute/cost: 5 requests per 60 seconds
 export const transcriptionRateLimit = hasRedis ? new Ratelimit({
   redis: Redis.fromEnv(),

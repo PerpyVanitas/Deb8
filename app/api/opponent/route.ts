@@ -1,6 +1,7 @@
+import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { generateOpponentRebuttal } from '@/lib/gemini/opponent'
-import { aiRateLimit } from '@/lib/rate-limit'
+import { aiRateLimit, geminiRateLimit } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase/server'
 
 export const maxDuration = 60; // Allow up to 60s
@@ -10,6 +11,11 @@ export async function POST(req: Request) {
   const { success } = await aiRateLimit.limit(ip)
   if (!success) {
     return NextResponse.json({ error: 'Rate limit exceeded. Please wait.' }, { status: 429 })
+  }
+
+  const geminiLimit = await geminiRateLimit.limit('global')
+  if (!geminiLimit.success) {
+    return NextResponse.json({ error: 'Gemini rate limit exceeded. Please wait.' }, { status: 429 })
   }
 
   const supabase = await createClient()
@@ -33,8 +39,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ rebuttal })
   } catch (error: any) {
+    Sentry.captureException(error)
     console.error("Opponent API Error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error?.message ?? 'Internal server error' }, { status: 500 })
   }
 }
 

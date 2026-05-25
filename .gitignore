@@ -1,7 +1,5 @@
 # v0 sandbox internal files
 __v0_runtime_loader.js
-# v0 sandbox internal files
-__v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
 .snowflake/
@@ -20,7 +18,7 @@ node_modules
 
 # Temporary & Config Files
 .env.sentry-build-plugin
-types_supabase.ts
+package-lock.json
 /*.js
 !next.config.mjs
 !postcss.config.mjs
@@ -32,3 +30,4 @@ types_supabase.ts
 /playwright/.cache/
 /playwright/.auth/
 tsconfig.tsbuildinfo
+/scratch/

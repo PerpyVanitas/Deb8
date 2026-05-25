@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { inngest } from "./client";
 import { createClient } from '@supabase/supabase-js'
 import { analyzeDebateSpeech, generateBallot, generateFactChecks, AnalysisResult, BallotResult, FactCheck } from '@/lib/gemini/analyze'
@@ -5,6 +6,7 @@ import { generateAutomatedBenchmark } from '@/lib/gemini/benchmarking'
 import { updateSkills } from '@/lib/progression/updateSkills'
 import { revalidatePath } from 'next/cache'
 import { analysisEventSchema } from '@/lib/inngest/types'
+import { geminiRateLimit } from '@/lib/rate-limit'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -23,139 +25,164 @@ export const analyzeSessionFn = inngest.createFunction(
   { id: "analyze-session", retries: 2 },
   { event: "analysis/start" },
   async ({ event, step }) => {
-    const { sessionId, userId, harshness } = analysisEventSchema.parse(event.data)
+    try {
+      const { sessionId, userId, harshness } = analysisEventSchema.parse(event.data)
 
-    // 1. Fetch data
-    const { session, transcripts } = await step.run("fetch-data", async () => {
-      const [sessionRes, transcriptsRes] = await Promise.all([
-        supabase.from('debate_sessions').select('*, motions(text)').eq('id', sessionId).single(),
-        supabase.from('transcripts').select('*').eq('session_id', sessionId)
-      ])
-      if (sessionRes.error) throw sessionRes.error
-      if (transcriptsRes.error) throw transcriptsRes.error
-      return { session: sessionRes.data, transcripts: transcriptsRes.data }
-    });
+      // 1. Fetch data
+      const { session, transcripts } = await step.run("fetch-data", async () => {
+        const [sessionRes, transcriptsRes] = await Promise.all([
+          supabase.from('debate_sessions').select('*, motions(text)').eq('id', sessionId).single(),
+          supabase.from('transcripts').select('*').eq('session_id', sessionId)
+        ])
+        if (sessionRes.error) throw sessionRes.error
+        if (transcriptsRes.error) throw transcriptsRes.error
+        return { session: sessionRes.data, transcripts: transcriptsRes.data }
+      });
 
-    // 2. Sequential Gemini tasks with sleeps to respect Free Tier 15 RPM limit
-    const analysisResults: {
-      analysis: AnalysisResult,
-      ballot: BallotResult,
-      factChecks: FactCheck[],
-      speakerIndex: number,
-      speakerRole: string
-    }[] = [];
-    for (let i = 0; i < transcripts.length; i++) {
-      const transcript = transcripts[i];
-      const roleStr = transcript.speaker_role || session.role;
-      
-      const a = await step.run(`analyze-speech-${i}`, async () => {
-        return await analyzeDebateSpeech({
-          transcript: transcript.raw_text,
-          motion: session.motions.text,
-          role: roleStr,
-          wordCount: transcript.word_count,
-          durationSeconds: transcript.duration_seconds,
-          format: session.format,
-          harshness: harshness
+      // 2. Sequential Gemini tasks with sleeps to respect Free Tier 15 RPM limit
+      const analysisResults: {
+        analysis: AnalysisResult,
+        ballot: BallotResult,
+        factChecks: FactCheck[],
+        speakerIndex: number,
+        speakerRole: string
+      }[] = [];
+
+      for (let i = 0; i < transcripts.length; i++) {
+        const transcript = transcripts[i];
+        const roleStr = transcript.speaker_role || session.role;
+
+        const geminiAnalyzeLimit = await geminiRateLimit.limit('global')
+        if (!geminiAnalyzeLimit.success) {
+          throw new Error('Gemini rate limit exceeded. Please retry later.')
+        }
+
+        const a = await step.run(`analyze-speech-${i}`, async () => {
+          return await analyzeDebateSpeech({
+            transcript: transcript.raw_text,
+            motion: session.motions.text,
+            role: roleStr,
+            wordCount: transcript.word_count,
+            durationSeconds: transcript.duration_seconds,
+            format: session.format,
+            harshness: harshness
+          });
         });
-      });
-      await step.sleep(`sleep-after-analyze-${i}`, "4s");
-      
-      const b = await step.run(`generate-ballot-${i}`, async () => {
-        return await generateBallot({
-          transcript: transcript.raw_text,
-          motion: session.motions.text,
-          role: roleStr,
-          format: session.format
+        await step.sleep(`sleep-after-analyze-${i}`, "5s");
+
+        const geminiBallotLimit = await geminiRateLimit.limit('global')
+        if (!geminiBallotLimit.success) {
+          throw new Error('Gemini rate limit exceeded. Please retry later.')
+        }
+
+        const b = await step.run(`generate-ballot-${i}`, async () => {
+          return await generateBallot({
+            transcript: transcript.raw_text,
+            motion: session.motions.text,
+            role: roleStr,
+            format: session.format
+          });
         });
-      });
-      await step.sleep(`sleep-after-ballot-${i}`, "4s");
-      
-      const fc = await step.run(`generate-factchecks-${i}`, async () => {
-        return await generateFactChecks({
-          transcript: transcript.raw_text,
-          motion: session.motions.text
+        await step.sleep(`sleep-after-ballot-${i}`, "5s");
+
+        const geminiFactCheckLimit = await geminiRateLimit.limit('global')
+        if (!geminiFactCheckLimit.success) {
+          throw new Error('Gemini rate limit exceeded. Please retry later.')
+        }
+
+        const fc = await step.run(`generate-factchecks-${i}`, async () => {
+          return await generateFactChecks({
+            transcript: transcript.raw_text,
+            motion: session.motions.text
+          });
         });
-      });
-      await step.sleep(`sleep-after-fc-${i}`, "4s");
-      
-      analysisResults.push({
-        analysis: a,
-        ballot: b,
-        factChecks: fc,
-        speakerIndex: transcript.speaker_index,
-        speakerRole: roleStr
-      });
-    }
+        await step.sleep(`sleep-after-fc-${i}`, "5s");
 
-    // 3. Benchmarking (also sequential with sleeps)
-    const benchmarkResults: any[] = [];
-    for (let i = 0; i < analysisResults.length; i++) {
-      const res = analysisResults[i];
-      const benchmark = await step.run(`generate-benchmark-${i}`, async () => {
-        return await generateAutomatedBenchmark(res.analysis, session.motions.text);
-      });
-      await step.sleep(`sleep-after-benchmark-${i}`, "4s");
-      benchmarkResults.push({ speakerIndex: res.speakerIndex, benchmark });
-    }
+        analysisResults.push({
+          analysis: a,
+          ballot: b,
+          factChecks: fc,
+          speakerIndex: transcript.speaker_index,
+          speakerRole: roleStr
+        });
+      }
 
-    // 4. Save to DB
-    // 4. Save to DB
-    await step.run("save-results", async () => {
-      for (const res of analysisResults) {
-        const bench = benchmarkResults.find((b: any) => b.speakerIndex === res.speakerIndex)?.benchmark
-        
-        await supabase.from('analyses').upsert({ 
-          session_id: sessionId, 
-          speaker_index: res.speakerIndex,
-          speaker_role: res.speakerRole,
-          ...res.analysis,
-          elite_benchmark: bench
-        }, { onConflict: 'session_id, speaker_index' });
+      // 3. Benchmarking (also sequential with sleeps)
+      const benchmarkResults: any[] = [];
+      for (let i = 0; i < analysisResults.length; i++) {
+        const res = analysisResults[i];
 
-        await supabase.from('ballots').upsert({
-          session_id: sessionId,
-          speaker_index: res.speakerIndex,
-          ...res.ballot
-        }, { onConflict: 'session_id, speaker_index' });
+        const geminiBenchmarkLimit = await geminiRateLimit.limit('global')
+        if (!geminiBenchmarkLimit.success) {
+          throw new Error('Gemini rate limit exceeded. Please retry later.')
+        }
 
-        if (res.factChecks && res.factChecks.length > 0) {
-          const factCheckRows = res.factChecks.map((fc: any) => ({
+        const benchmark = await step.run(`generate-benchmark-${i}`, async () => {
+          return await generateAutomatedBenchmark(res.analysis, session.motions.text);
+        });
+        await step.sleep(`sleep-after-benchmark-${i}`, "5s");
+        benchmarkResults.push({ speakerIndex: res.speakerIndex, benchmark });
+      }
+
+      // 4. Save to DB
+      await step.run("save-results", async () => {
+        for (const res of analysisResults) {
+          const bench = benchmarkResults.find((b: any) => b.speakerIndex === res.speakerIndex)?.benchmark
+
+          await supabase.from('analyses').upsert({
             session_id: sessionId,
             speaker_index: res.speakerIndex,
-            claim: fc.claim,
-            verdict: fc.verdict,
-            confidence: fc.confidence,
-            explanation: fc.explanation,
-            sources: fc.sources
-          }));
-          // Delete existing for this speaker to prevent duplication on retry
-          await supabase.from('fact_checks').delete().eq('session_id', sessionId).eq('speaker_index', res.speakerIndex);
-          await supabase.from('fact_checks').insert(factCheckRows);
+            speaker_role: res.speakerRole,
+            ...res.analysis,
+            elite_benchmark: bench
+          }, { onConflict: 'session_id, speaker_index' });
+
+          await supabase.from('ballots').upsert({
+            session_id: sessionId,
+            speaker_index: res.speakerIndex,
+            ...res.ballot
+          }, { onConflict: 'session_id, speaker_index' });
+
+          if (res.factChecks && res.factChecks.length > 0) {
+            const factCheckRows = res.factChecks.map((fc: any) => ({
+              session_id: sessionId,
+              speaker_index: res.speakerIndex,
+              claim: fc.claim,
+              verdict: fc.verdict,
+              confidence: fc.confidence,
+              explanation: fc.explanation,
+              sources: fc.sources
+            }));
+            await supabase.from('fact_checks').delete().eq('session_id', sessionId).eq('speaker_index', res.speakerIndex);
+            await supabase.from('fact_checks').insert(factCheckRows);
+          }
         }
-      }
-    });
+      });
 
-    // 5. Update Skills and Session Status
-    await step.run("finalize-session", async () => {
-      await supabase.from('debate_sessions').update({ status: 'analyzed' }).eq('id', sessionId);
-      
-      // Update skills based on the first speaker (the primary user)
-      const primaryRes = analysisResults.find((r: any) => r.speakerIndex === 0)
-      if (primaryRes && primaryRes.analysis.scores) {
-        await updateSkills(userId, sessionId, primaryRes.analysis.scores);
-      }
+      // 5. Update Skills and Session Status
+      await step.run("finalize-session", async () => {
+        await supabase.from('debate_sessions').update({ status: 'analyzed' }).eq('id', sessionId);
 
-      try {
-        revalidatePath('/dashboard');
-        revalidatePath(`/sessions/${sessionId}/analysis`);
-        revalidatePath('/leaderboard');
-      } catch (err) {
-        console.error("Failed to revalidate cache", err)
-      }
-    });
+        const primaryRes = analysisResults.find((r: any) => r.speakerIndex === 0)
+        if (primaryRes && primaryRes.analysis.scores) {
+          await updateSkills(userId, sessionId, primaryRes.analysis.scores);
+        }
 
-    return { success: true, sessionId };
+        try {
+          revalidatePath('/dashboard');
+          revalidatePath(`/sessions/${sessionId}/analysis`);
+          revalidatePath('/leaderboard');
+        } catch (err) {
+          console.error("Failed to revalidate cache", err)
+        }
+      });
+
+      return { success: true, sessionId };
+    } catch (error: any) {
+      Sentry.captureException(error)
+      console.error('Inngest analyzeSessionFn Error:', error)
+      throw error
+    }
   }
 );
 

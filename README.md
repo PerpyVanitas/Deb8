@@ -66,7 +66,7 @@ Deb8 supports various international debate formats (British Parliamentary, Asian
 We use Playwright for end-to-end testing.
 To run the automated test suite locally:
 ```bash
-npx playwright test
+pnpm exec playwright test
 ```
 *Note: Make sure your local server is running, or that Playwright's `webServer` config is uncommented in `playwright.config.ts`.*
 

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { transcribeAudio } from '@/lib/groq/transcribe'
@@ -59,8 +60,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, text, wordCount })
   } catch (error: any) {
+    Sentry.captureException(error)
     console.error("Transcription Route Error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error?.message ?? 'Internal server error' }, { status: 500 })
   }
 }
 
