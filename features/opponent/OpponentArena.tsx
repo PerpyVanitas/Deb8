@@ -59,7 +59,11 @@ export function OpponentArena({ session }: { session: any }) {
           format: session.format
         })
       })
-      if (!opponentRes.ok) throw new Error("Opponent generation failed")
+      if (!opponentRes.ok) {
+        const errorBody = await opponentRes.json().catch(() => null)
+        const message = errorBody?.error || 'Opponent generation failed'
+        throw new Error(message)
+      }
       const { rebuttal } = await opponentRes.json()
 
       setHistory([...newHistory, { role: 'ai', text: rebuttal }])
@@ -80,13 +84,20 @@ export function OpponentArena({ session }: { session: any }) {
       const formData = new FormData()
       formData.append('file', blob)
       const transcribeRes = await fetch('/api/transcribe-direct', { method: 'POST', body: formData })
-      if (!transcribeRes.ok) throw new Error("Transcription failed")
+      if (!transcribeRes.ok) {
+        const errorBody = await transcribeRes.json().catch(() => null)
+        const message = errorBody?.error || 'Transcription failed'
+        throw new Error(message)
+      }
       const { text: userTranscript } = await transcribeRes.json()
+      if (!userTranscript?.trim()) {
+        throw new Error('No speech was recognized. Please try again with clearer audio.')
+      }
 
       await submitTurn(userTranscript)
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Failed to transcribe audio. Please try again.")
+      alert(err?.message || "Failed to transcribe audio. Please try again.")
       setIsProcessing(false)
     }
   }

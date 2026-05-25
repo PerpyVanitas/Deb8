@@ -1,6 +1,7 @@
 import { google } from '@ai-sdk/google'
-import { generateText, embed } from 'ai'
+import { embed } from 'ai'
 import { z } from 'zod'
+import { generateTextWithFallback } from './utils'
 
 const AnalysisSchema = z.object({
   scores: z.object({
@@ -67,7 +68,7 @@ export async function analyzeDebateSpeech({
   const wpm = durationSeconds ? Math.round(wordCount / (durationSeconds / 60)) : null;
   const wpmContext = wpm ? `The debater spoke at exactly ${wpm} Words Per Minute (WPM). Standard conversational pace is ~150 WPM. Competitive debate pace is 200-250 WPM.` : '';
 
-  const model = google('gemini-2.0-flash')
+  const model = google('gemini-2.0-flash-lite')
 
   const systemPrompt = `You are an elite competitive debate coach and adjudicator. Analyze the provided speech transcript.
 The debate format is: ${format || 'BP'}.
@@ -99,7 +100,7 @@ IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any 
 
   const prompt = `Analyze this speech transcript (${wordCount} words):\n\n${transcript}`
 
-  const result = await generateText({
+  const result = await generateTextWithFallback({
     model,
     system: systemPrompt,
     prompt,
@@ -145,7 +146,7 @@ export async function generateBallot({
   role: string,
   format?: string 
 }) {
-  const model = google('gemini-2.0-flash')
+  const model = google('gemini-2.0-flash-lite')
 
   const systemPrompt = `You are an expert debate judge with a 'technical' persona.
 The debate format is: ${format || 'BP'}.
@@ -169,7 +170,7 @@ IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any 
 
   const prompt = `Evaluate this speech transcript:\n\n${transcript}`
 
-  const result = await generateText({
+  const result = await generateTextWithFallback({
     model,
     system: systemPrompt,
     prompt,
@@ -208,7 +209,7 @@ export async function generateFactChecks({
   transcript: string, 
   motion: string 
 }) {
-  const model = google('gemini-2.0-flash')
+  const model = google('gemini-2.0-flash-lite')
 
   const systemPrompt = `You are an elite fact-checker for a debate platform. You have access to Google Search. Use it to verify empirical claims.
 The debater is speaking on the motion: "${motion}".
@@ -225,7 +226,7 @@ IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any 
 
   const prompt = `Fact-check this speech transcript:\n\n${transcript}`
 
-  const result = await generateText({
+  const result = await generateTextWithFallback({
     model,
     system: systemPrompt,
     prompt,

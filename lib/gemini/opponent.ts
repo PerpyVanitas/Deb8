@@ -1,5 +1,6 @@
 import { google } from '@ai-sdk/google'
 import { generateText } from 'ai'
+import { generateTextWithFallback } from './utils'
 
 export async function generateOpponentRebuttal({
   transcript,
@@ -45,7 +46,7 @@ CRITICAL INSTRUCTION: You are an elite HUMAN debater, not an omniscient AI. You 
     throw new Error("GEMINI_API_KEY is not configured")
   }
 
-  const model = google('gemini-2.0-flash')
+  const model = google('gemini-2.0-flash-lite')
   const systemPrompt = personaPrompt + '\n' + fallibilityPrompt
 
   const prompt = `The debate format is: ${format || 'Free Sparring'}.
@@ -60,7 +61,7 @@ Write your rebuttal speech. It should be approximately 3-4 paragraphs (about 2 m
 Speak directly to the opponent and the judge. Do NOT use markdown or special formatting. Just pure spoken text so it can be read aloud by a Text-to-Speech engine.`
 
   try {
-    const result = await generateText({
+    const result = await generateTextWithFallback({
       model,
       system: systemPrompt,
       prompt,

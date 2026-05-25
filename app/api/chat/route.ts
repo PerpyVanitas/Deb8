@@ -1,12 +1,23 @@
 import * as Sentry from '@sentry/nextjs'
 import { google } from '@ai-sdk/google'
-import { streamText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
 import { geminiRateLimit } from '@/lib/rate-limit'
+import { streamTextWithFallback } from '@/lib/gemini/utils'
+
+async function ensureGeminiLimit(retries = 4) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const { success } = await geminiRateLimit.limit('global')
+    if (success) return true
+
+    const waitMs = 2000 * 2 ** attempt
+    await new Promise(resolve => setTimeout(resolve, waitMs))
+  }
+  return false
+}
 
 export async function POST(req: Request) {
   try {
-    const { success } = await geminiRateLimit.limit('global')
+    const success = await ensureGeminiLimit()
     if (!success) {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait.' }), {
         status: 429,
@@ -31,8 +42,8 @@ ${JSON.stringify(analysis, null, 2)}
 The user is now chatting with you to appeal their score, ask for clarification on your feedback, or request specific debate drills.
 Be helpful, analytical, and objective. If they make a good point appealing a score, acknowledge it, but explain your reasoning firmly. Do NOT use markdown code blocks for the JSON, just answer naturally as a human coach.`
 
-    const result = await streamText({
-      model: google('gemini-2.0-flash'),
+    const result = await streamTextWithFallback({
+      model: google('gemini-2.0-flash-lite'),
       system: contextSystemPrompt,
       messages,
     })

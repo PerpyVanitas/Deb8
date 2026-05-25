@@ -25,6 +25,7 @@ export const analyzeSessionFn = inngest.createFunction(
   { id: "analyze-session", retries: 2 },
   { event: "analysis/start" },
   async ({ event, step }) => {
+    console.log('Inngest analyzeSessionFn: received event', { name: event.name, data: event.data })
     try {
       const { sessionId, userId, harshness } = analysisEventSchema.parse(event.data)
 
@@ -48,16 +49,26 @@ export const analyzeSessionFn = inngest.createFunction(
         speakerRole: string
       }[] = [];
 
+      async function runGeminiStep<T>(stepName: string, task: () => Promise<T>) {
+        const maxRetries = 5
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          const limit = await geminiRateLimit.limit('global')
+          if (limit.success) {
+            return await step.run(stepName, task)
+          }
+
+          const waitMs = 5000 * (attempt + 1)
+          console.warn(`Gemini rate limit hit for ${stepName}; retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`)
+          await step.sleep(`${stepName}-rate-limit-wait-${attempt + 1}`, `${waitMs}ms`)
+        }
+        throw new Error('Gemini rate limit exceeded. Please retry later.')
+      }
+
       for (let i = 0; i < transcripts.length; i++) {
         const transcript = transcripts[i];
         const roleStr = transcript.speaker_role || session.role;
 
-        const geminiAnalyzeLimit = await geminiRateLimit.limit('global')
-        if (!geminiAnalyzeLimit.success) {
-          throw new Error('Gemini rate limit exceeded. Please retry later.')
-        }
-
-        const a = await step.run(`analyze-speech-${i}`, async () => {
+        const a = await runGeminiStep(`analyze-speech-${i}`, async () => {
           return await analyzeDebateSpeech({
             transcript: transcript.raw_text,
             motion: session.motions.text,
@@ -70,12 +81,7 @@ export const analyzeSessionFn = inngest.createFunction(
         });
         await step.sleep(`sleep-after-analyze-${i}`, "5s");
 
-        const geminiBallotLimit = await geminiRateLimit.limit('global')
-        if (!geminiBallotLimit.success) {
-          throw new Error('Gemini rate limit exceeded. Please retry later.')
-        }
-
-        const b = await step.run(`generate-ballot-${i}`, async () => {
+        const b = await runGeminiStep(`generate-ballot-${i}`, async () => {
           return await generateBallot({
             transcript: transcript.raw_text,
             motion: session.motions.text,
@@ -85,12 +91,7 @@ export const analyzeSessionFn = inngest.createFunction(
         });
         await step.sleep(`sleep-after-ballot-${i}`, "5s");
 
-        const geminiFactCheckLimit = await geminiRateLimit.limit('global')
-        if (!geminiFactCheckLimit.success) {
-          throw new Error('Gemini rate limit exceeded. Please retry later.')
-        }
-
-        const fc = await step.run(`generate-factchecks-${i}`, async () => {
+        const fc = await runGeminiStep(`generate-factchecks-${i}`, async () => {
           return await generateFactChecks({
             transcript: transcript.raw_text,
             motion: session.motions.text
@@ -112,12 +113,7 @@ export const analyzeSessionFn = inngest.createFunction(
       for (let i = 0; i < analysisResults.length; i++) {
         const res = analysisResults[i];
 
-        const geminiBenchmarkLimit = await geminiRateLimit.limit('global')
-        if (!geminiBenchmarkLimit.success) {
-          throw new Error('Gemini rate limit exceeded. Please retry later.')
-        }
-
-        const benchmark = await step.run(`generate-benchmark-${i}`, async () => {
+        const benchmark = await runGeminiStep(`generate-benchmark-${i}`, async () => {
           return await generateAutomatedBenchmark(res.analysis, session.motions.text);
         });
         await step.sleep(`sleep-after-benchmark-${i}`, "5s");

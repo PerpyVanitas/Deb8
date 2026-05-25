@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -19,6 +19,7 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
   const [totalSpeakers, setTotalSpeakers] = useState<number | null>(null)
   const router = useRouter()
   const [supabase] = useState(() => createClient())
+  const analysisRequested = useRef(false)
 
   useEffect(() => {
     let mounted = true
@@ -111,6 +112,12 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
     }
 
     const runAnalysis = async () => {
+      if (analysisRequested.current) {
+        console.log('Analysis request already dispatched for session', sessionId)
+        return
+      }
+      analysisRequested.current = true
+
       try {
         setStatus('Triggering AI Analysis Pipeline...')
         const harshness = localStorage.getItem('deb8_harshness') || 'Standard'
@@ -130,6 +137,7 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
         }
       } catch (err: any) {
         console.error(err)
+        analysisRequested.current = false
         if (mounted) setError(err.message || 'Failed to analyze speech')
       }
     }

@@ -1,6 +1,7 @@
 import { google } from '@ai-sdk/google'
 import { generateText } from 'ai'
 import { embedText } from './embed'
+import { generateTextWithFallback } from './utils'
 import { createClient } from '@supabase/supabase-js'
 // Server-side supabase client for RPC calls inside lib functions
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -45,7 +46,7 @@ export async function generateAutomatedBenchmark(analysis: any, motion: string) 
   const eliteMatch = matches[0]
 
   // 4. Generate comparison via Gemini
-  const model = google('gemini-2.0-flash')
+  const model = google('gemini-2.0-flash-lite')
   const prompt = `You are an elite debate coach.
 The debater is speaking on: "${motion}".
 Here is a segment from the user's speech (${targetSegment.segment_type}):
@@ -57,7 +58,7 @@ Here is a highly rated segment from elite debater ${eliteMatch.debater_name} on 
 Write a concise, 2-3 paragraph comparison. Explain why the elite debater's approach is structurally or rhetorically stronger, and give the user one specific actionable takeaway to sound more like the elite debater.`
 
   try {
-    const result = await generateText({
+    const result = await generateTextWithFallback({
       model,
       prompt,
     })

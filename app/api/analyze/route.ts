@@ -23,15 +23,67 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { sessionId, harshness } = analysisRequestSchema.parse(body)
 
-    // Dispatch the analysis pipeline to the Inngest background queue
-    await inngest.send({
-      name: "analysis/start",
-      data: {
+    const { data: session, error: sessionError } = await supabase
+      .from('debate_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single()
+
+    if (sessionError) throw sessionError
+    if (!session) throw new Error('Session not found')
+
+    if (session.status === 'analyzing' || session.status === 'analyzed') {
+      console.log('Analyze route: session already in progress or complete, skipping duplicate enqueue', {
         sessionId,
-        userId: user.id,
-        harshness
+        status: session.status
+      })
+      return NextResponse.json(analysisResponseSchema.parse({ success: true, queued: true }))
+    }
+
+    const { data: updatedSession, error: updateError } = await supabase
+      .from('debate_sessions')
+      .update({ status: 'analyzing' })
+      .eq('id', sessionId)
+      .in('status', ['pending', 'recorded'])
+      .select('status')
+      .maybeSingle()
+
+    if (updateError) {
+      console.warn('Analyze route: failed to mark session as analyzing', { sessionId, error: updateError })
+    }
+
+    if (!updatedSession) {
+      const { data: currentSession, error: currentSessionError } = await supabase
+        .from('debate_sessions')
+        .select('status')
+        .eq('id', sessionId)
+        .single()
+      if (currentSessionError) throw currentSessionError
+      if (currentSession?.status === 'analyzing' || currentSession?.status === 'analyzed') {
+        console.log('Analyze route: another process started analysis first; skipping duplicate', {
+          sessionId,
+          status: currentSession?.status
+        })
+        return NextResponse.json(analysisResponseSchema.parse({ success: true, queued: true }))
       }
-    });
+    }
+
+    // Dispatch the analysis pipeline to the Inngest background queue
+    console.log('Analyze route: sending analysis/start event', { sessionId, userId: user.id, harshness })
+    try {
+      await inngest.send({
+        name: "analysis/start",
+        data: {
+          sessionId,
+          userId: user.id,
+          harshness
+        }
+      });
+      console.log('Analyze route: analysis/start event sent successfully', { sessionId })
+    } catch (sendError) {
+      console.error('Analyze route: failed to send analysis/start event', sendError, { sessionId, userId: user.id, harshness })
+      throw sendError
+    }
 
     try {
       revalidatePath('/dashboard')
