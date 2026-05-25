@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
-import { getRecentSessions } from "@/app/dashboard/actions"
+import { getRecentSessions } from "@/app/(main)/dashboard/actions"
 
 export function RecentSessions({ initialSessions, userId }: { initialSessions: any[], userId: string }) {
   const [sessions, setSessions] = useState(initialSessions)

@@ -24,7 +24,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
   }
 
   return (
-    <div className="container max-w-4xl py-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="container mx-auto max-w-4xl py-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col gap-2">
         <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
           <Trophy className="w-10 h-10 text-yellow-500" />

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Info, Search, Loader2 } from "lucide-react"
-import { getMotions } from "@/app/motions/actions"
+import { getMotions } from "@/app/(main)/motions/actions"
 
 type Motion = {
   id: string

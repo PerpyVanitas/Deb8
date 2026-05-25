@@ -54,27 +54,16 @@ export default async function DashboardPage() {
           </h1>
           <p className="text-sm text-muted-foreground">{profile?.total_speeches ?? 0} speeches delivered</p>
         </div>
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 border border-primary/20">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.26 10.147a6.04 6.04 0 0 0-.44-2.322A7.535 7.535 0 0 1 2 11.5c0 4.142 3.582 7.5 8 7.5s8-3.358 8-7.5a7.535 7.535 0 0 1-1.82-3.675 6.04 6.04 0 0 0-.44 2.322c0 3.313-2.567 6-5.74 6s-5.74-2.687-5.74-6z"/><path d="m14.5 13-3-5m0 0 2-4-4.5 6-2-2 3.5 7"/></svg>
-              {profile?.xp || 0} XP
-            </div>
-            <div className="bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 border border-orange-500/20">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
-              {profile?.current_streak || 0} Day Streak
-            </div>
-            <ThemeToggle />
-            {isAdmin ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href="/admin">Admin</Link>
-              </Button>
-            ) : null}
-            <form action="/auth/signout" method="post">
-              <Button variant="outline" size="sm" type="submit" formAction="/auth/signout">
-                Sign out
-              </Button>
-            </form>
+        <div className="flex items-center gap-2">
+          <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 border border-primary/20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.26 10.147a6.04 6.04 0 0 0-.44-2.322A7.535 7.535 0 0 1 2 11.5c0 4.142 3.582 7.5 8 7.5s8-3.358 8-7.5a7.535 7.535 0 0 1-1.82-3.675 6.04 6.04 0 0 0-.44 2.322c0 3.313-2.567 6-5.74 6s-5.74-2.687-5.74-6z"/><path d="m14.5 13-3-5m0 0 2-4-4.5 6-2-2 3.5 7"/></svg>
+            {profile?.xp || 0} XP
           </div>
+          <div className="bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 border border-orange-500/20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+            {profile?.current_streak || 0} Day Streak
+          </div>
+        </div>
       </div>
 
       <div className="mb-8">
