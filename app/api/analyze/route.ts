@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { aiRateLimit } from '@/lib/rate-limit'
 import { inngest } from '@/lib/inngest/client'
+import { revalidatePath } from 'next/cache'
+import { analysisRequestSchema, analysisResponseSchema } from '@/lib/inngest/types'
 
 export const maxDuration = 60; // Allow Vercel to run up to 60s
 
@@ -17,7 +19,8 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { sessionId, harshness = 'Standard' } = await req.json()
+    const body = await req.json()
+    const { sessionId, harshness } = analysisRequestSchema.parse(body)
 
     // Dispatch the analysis pipeline to the Inngest background queue
     await inngest.send({
@@ -29,9 +32,19 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, queued: true })
+    try {
+      revalidatePath('/dashboard')
+      revalidatePath(`/sessions/${sessionId}/analysis`)
+    } catch (err) {
+      console.error('Analyze route cache revalidation failed', err)
+    }
+
+    return NextResponse.json(analysisResponseSchema.parse({ success: true, queued: true }))
   } catch (error: any) {
     console.error("Analyze Route Error:", error)
+    if (error?.name === 'ZodError') {
+      return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 })
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

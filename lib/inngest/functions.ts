@@ -1,8 +1,10 @@
 import { inngest } from "./client";
 import { createClient } from '@supabase/supabase-js'
-import { analyzeDebateSpeech, generateBallot, generateFactChecks } from '@/lib/gemini/analyze'
+import { analyzeDebateSpeech, generateBallot, generateFactChecks, AnalysisResult, BallotResult, FactCheck } from '@/lib/gemini/analyze'
 import { generateAutomatedBenchmark } from '@/lib/gemini/benchmarking'
 import { updateSkills } from '@/lib/progression/updateSkills'
+import { revalidatePath } from 'next/cache'
+import { analysisEventSchema } from '@/lib/inngest/types'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -21,7 +23,7 @@ export const analyzeSessionFn = inngest.createFunction(
   { id: "analyze-session", retries: 2 },
   { event: "analysis/start" },
   async ({ event, step }) => {
-    const { sessionId, userId, harshness } = event.data;
+    const { sessionId, userId, harshness } = analysisEventSchema.parse(event.data)
 
     // 1. Fetch data
     const { session, transcripts } = await step.run("fetch-data", async () => {
@@ -35,7 +37,13 @@ export const analyzeSessionFn = inngest.createFunction(
     });
 
     // 2. Sequential Gemini tasks with sleeps to respect Free Tier 15 RPM limit
-    const analysisResults: any[] = [];
+    const analysisResults: {
+      analysis: AnalysisResult,
+      ballot: BallotResult,
+      factChecks: FactCheck[],
+      speakerIndex: number,
+      speakerRole: string
+    }[] = [];
     for (let i = 0; i < transcripts.length; i++) {
       const transcript = transcripts[i];
       const roleStr = transcript.speaker_role || session.role;
@@ -129,7 +137,6 @@ export const analyzeSessionFn = inngest.createFunction(
     });
 
     // 5. Update Skills and Session Status
-    // 5. Update Skills and Session Status
     await step.run("finalize-session", async () => {
       await supabase.from('debate_sessions').update({ status: 'analyzed' }).eq('id', sessionId);
       
@@ -137,6 +144,14 @@ export const analyzeSessionFn = inngest.createFunction(
       const primaryRes = analysisResults.find((r: any) => r.speakerIndex === 0)
       if (primaryRes && primaryRes.analysis.scores) {
         await updateSkills(userId, sessionId, primaryRes.analysis.scores);
+      }
+
+      try {
+        revalidatePath('/dashboard');
+        revalidatePath(`/sessions/${sessionId}/analysis`);
+        revalidatePath('/leaderboard');
+      } catch (err) {
+        console.error("Failed to revalidate cache", err)
       }
     });
 

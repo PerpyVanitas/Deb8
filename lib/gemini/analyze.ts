@@ -1,7 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { google } from '@ai-sdk/google'
+import { generateText, embed } from 'ai'
 import { z } from 'zod'
-
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 const AnalysisSchema = z.object({
   scores: z.object({
@@ -38,6 +37,8 @@ const AnalysisSchema = z.object({
   rfd_summary: z.string()
 })
 
+export type AnalysisResult = z.infer<typeof AnalysisSchema>
+
 export async function analyzeDebateSpeech({ 
   transcript, 
   motion, 
@@ -66,9 +67,9 @@ export async function analyzeDebateSpeech({
   const wpm = durationSeconds ? Math.round(wordCount / (durationSeconds / 60)) : null;
   const wpmContext = wpm ? `The debater spoke at exactly ${wpm} Words Per Minute (WPM). Standard conversational pace is ~150 WPM. Competitive debate pace is 200-250 WPM.` : '';
 
-  const model = genai.getGenerativeModel({ 
-    model: 'gemini-2.0-flash',
-    systemInstruction: `You are an elite competitive debate coach and adjudicator. Analyze the provided speech transcript.
+  const model = google('gemini-2.0-flash')
+
+  const systemPrompt = `You are an elite competitive debate coach and adjudicator. Analyze the provided speech transcript.
 The debate format is: ${format || 'BP'}.
 The debater is speaking on the motion: "${motion}"
 Their role is: ${role}.
@@ -94,18 +95,17 @@ Return a structured JSON object containing:
   *Note on stylistics: Count the exact number of filler words (um, ah, like, basically, literally) in the transcript. Use the provided WPM to judge pace.*
 - rfd_summary: 2-3 sentence adjudicator Reason for Decision
 
-IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.` 
-  })
+IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.`
 
   const prompt = `Analyze this speech transcript (${wordCount} words):\n\n${transcript}`
 
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: temperature
-    }
+  const result = await generateText({
+    model,
+    system: systemPrompt,
+    prompt,
+    temperature,
   })
-  let text = result.response.text().trim()
+  let text = result.text.trim()
   
   if (text.startsWith('```json')) {
     text = text.replace(/^```json/, '').replace(/```$/, '').trim()
@@ -132,6 +132,8 @@ const BallotSchema = z.object({
   judge_persona: z.string()
 })
 
+export type BallotResult = z.infer<typeof BallotSchema>
+
 export async function generateBallot({ 
   transcript, 
   motion, 
@@ -143,9 +145,9 @@ export async function generateBallot({
   role: string,
   format?: string 
 }) {
-  const model = genai.getGenerativeModel({ 
-    model: 'gemini-2.0-flash',
-    systemInstruction: `You are an expert debate judge with a 'technical' persona.
+  const model = google('gemini-2.0-flash')
+
+  const systemPrompt = `You are an expert debate judge with a 'technical' persona.
 The debate format is: ${format || 'BP'}.
 The debater is speaking on the motion: "${motion}"
 Their role is: ${role}.
@@ -163,13 +165,16 @@ Evaluate the speech and return a structured JSON object containing:
 - clash_evaluation: array of { issue: string, winner: string, reason: string }
 - judge_persona: 'technical'
 
-IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.` 
-  })
+IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.`
 
   const prompt = `Evaluate this speech transcript:\n\n${transcript}`
 
-  const result = await model.generateContent(prompt)
-  let text = result.response.text().trim()
+  const result = await generateText({
+    model,
+    system: systemPrompt,
+    prompt,
+  })
+  let text = result.text.trim()
   
   if (text.startsWith('```json')) {
     text = text.replace(/^```json/, '').replace(/```$/, '').trim()
@@ -194,6 +199,8 @@ const FactChecksSchema = z.object({
   }))
 })
 
+export type FactCheck = z.infer<typeof FactChecksSchema>['checks'][0]
+
 export async function generateFactChecks({ 
   transcript, 
   motion 
@@ -201,10 +208,9 @@ export async function generateFactChecks({
   transcript: string, 
   motion: string 
 }) {
-  const model = genai.getGenerativeModel({ 
-    model: 'gemini-2.0-flash',
-    tools: [{ googleSearch: {} } as any],
-    systemInstruction: `You are an elite fact-checker for a debate platform. You have access to Google Search. Use it to verify empirical claims.
+  const model = google('gemini-2.0-flash')
+
+  const systemPrompt = `You are an elite fact-checker for a debate platform. You have access to Google Search. Use it to verify empirical claims.
 The debater is speaking on the motion: "${motion}".
 
 Analyze the transcript for factual claims, especially empirical data, historical events, or statistics.
@@ -215,13 +221,16 @@ Return a structured JSON object containing an array 'checks' with each object:
 - explanation: string (why the verdict was given, citing what you found on Google)
 - sources: array of strings (URLs or source names you found)
 
-IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.` 
-  })
+IMPORTANT: Return ONLY raw JSON without markdown formatting (\`\`\`json) or any additional text.`
 
   const prompt = `Fact-check this speech transcript:\n\n${transcript}`
 
-  const result = await model.generateContent(prompt)
-  let text = result.response.text().trim()
+  const result = await generateText({
+    model,
+    system: systemPrompt,
+    prompt,
+  })
+  let text = result.text.trim()
   
   if (text.startsWith('```json')) {
     text = text.replace(/^```json/, '').replace(/```$/, '').trim()

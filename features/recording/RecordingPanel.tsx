@@ -26,7 +26,7 @@ export function RecordingPanel({
   maxSpeakers?: number;
   timeLimitSeconds?: number;
 }) {
-  const { status, audioBlob, start, stop, pause, resume, discard, stream, clearAutosave } = useRecorder()
+  const { status, audioBlob, start, stop, pause, resume, discard, stream, clearAutosave } = useRecorder(sessionId)
   const [seconds, setSeconds] = useState(0)
   const [isBlindnessMode, setIsBlindnessMode] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)

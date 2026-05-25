@@ -1,9 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
-
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { embed } from 'ai'
 
 export async function embedText(text: string): Promise<number[]> {
-  const model = genai.getGenerativeModel({ model: 'text-embedding-004' })
-  const result = await model.embedContent(text)
-  return result.embedding.values
+  const result = await embed({ model: 'text-embedding-3-large', value: text })
+  return Array.from(result.embedding.values())
 }

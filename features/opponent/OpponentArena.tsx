@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useRef } from "react"
 
 export function OpponentArena({ session }: { session: any }) {
-  const { status, audioBlob, start, stop, stream } = useRecorder()
+  const { status, audioBlob, start, stop, stream } = useRecorder(session.id)
   const [persona, setPersona] = useState("aggressive")
   const [isProcessing, setIsProcessing] = useState(false)
   const [textInput, setTextInput] = useState("")

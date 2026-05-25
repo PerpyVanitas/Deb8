@@ -21,8 +21,7 @@ node_modules
 # Temporary & Config Files
 .env.sentry-build-plugin
 types_supabase.ts
-*.sql
-*.js
+/*.js
 !next.config.mjs
 !postcss.config.mjs
 
@@ -32,3 +31,4 @@ types_supabase.ts
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+tsconfig.tsbuildinfo

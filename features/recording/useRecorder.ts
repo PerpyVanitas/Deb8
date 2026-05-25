@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import { set, get, del } from 'idb-keyval'
 
-export function useRecorder() {
+export function useRecorder(sessionId?: string) {
   const [status, setStatus] = useState<'idle' | 'recording' | 'paused' | 'stopped'>('idle')
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
@@ -10,9 +10,11 @@ export function useRecorder() {
   const chunksRef = useRef<BlobPart[]>([])
   const autosaveIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  const idbKey = sessionId ? `unsaved_audio_${sessionId}` : 'unsaved_audio_default'
+
   // Check for crashed/unsaved recordings on mount
   useEffect(() => {
-    get('unsaved_audio').then(blob => {
+    get(idbKey).then(blob => {
       if (blob) {
         toast("Unsaved Recording Found", {
           description: "We recovered a recording that didn't finish uploading.",
@@ -21,7 +23,7 @@ export function useRecorder() {
         setAudioBlob(blob as Blob)
       }
     })
-  }, [])
+  }, [idbKey])
 
   const start = async () => {
     try {
@@ -42,7 +44,7 @@ export function useRecorder() {
       // Autosave to IndexedDB every 5 seconds
       autosaveIntervalRef.current = setInterval(() => {
         if (chunksRef.current.length > 0) {
-          set('unsaved_audio', new Blob(chunksRef.current, { type: 'audio/webm' })).catch(console.error)
+          set(idbKey, new Blob(chunksRef.current, { type: 'audio/webm' })).catch(console.error)
         }
       }, 5000)
     } catch (err: any) {
@@ -96,11 +98,11 @@ export function useRecorder() {
     setAudioBlob(null)
     setStream(null)
     setStatus('idle')
-    del('unsaved_audio').catch(console.error)
+    del(idbKey).catch(console.error)
   }
 
   const clearAutosave = () => {
-    del('unsaved_audio').catch(console.error)
+    del(idbKey).catch(console.error)
   }
 
   return { status, audioBlob, start, stop, pause, resume, discard, stream, clearAutosave }

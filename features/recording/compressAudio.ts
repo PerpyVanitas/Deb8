@@ -1,61 +1,47 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+// We keep loadFFmpeg as a no-op or just preload the worker if needed, 
+// but we'll instantiate the worker dynamically to avoid SSR issues.
 
-let ffmpeg: FFmpeg | null = null
-let loadPromise: Promise<FFmpeg> | null = null
+let workerInstance: Worker | null = null
 
-export async function loadFFmpeg() {
-  if (ffmpeg?.loaded) return ffmpeg
-  if (loadPromise) return loadPromise
-
-  ffmpeg = new FFmpeg()
-
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
-  
-  // NOTE: We deliberately use the standard single-threaded core.
-  // Using the multi-threaded core requires SharedArrayBuffer, 
-  // which forces strict COOP/COEP headers and breaks Supabase OAuth.
-  loadPromise = (async () => {
-    await ffmpeg!.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    })
-    return ffmpeg!
-  })()
-
-  try {
-    await loadPromise
-  } catch (err) {
-    ffmpeg = null
-    loadPromise = null
-    throw err
+function getWorker() {
+  if (typeof window === 'undefined') return null
+  if (!workerInstance) {
+    workerInstance = new Worker(new URL('./ffmpeg.worker.ts', import.meta.url))
   }
-
-  return ffmpeg
+  return workerInstance
 }
 
-export async function compressWebm(blob: Blob): Promise<Blob> {
-  const f = await loadFFmpeg()
+export async function loadFFmpeg() {
+  // Pre-initialize worker so it can start downloading WASM in the background
+  getWorker()
+  return true
+}
 
-  const inputName = 'input.webm'
-  const outputName = 'output.webm'
+export function compressWebm(blob: Blob, onProgress?: (p: number) => void): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const worker = getWorker()
+    if (!worker) {
+      return reject(new Error("Web Workers are not supported in this environment"))
+    }
 
-  // Write input blob to FFmpeg's virtual file system
-  await f.writeFile(inputName, await fetchFile(blob))
+    const id = Math.random().toString(36).substring(7)
 
-  // Execute compression command
-  // -c:a libopus: Use Opus codec optimized for speech
-  // -b:a 32k: High compression (32kbps), excellent for voice retention
-  // -vbr on: Variable Bitrate
-  await f.exec(['-i', inputName, '-c:a', 'libopus', '-b:a', '32k', '-vbr', 'on', outputName])
+    const handleMessage = (e: MessageEvent) => {
+      const { type, payload, id: msgId } = e.data
+      if (msgId !== id) return
 
-  // Read output
-  const fileData = await f.readFile(outputName)
-  const data = new Uint8Array(fileData as unknown as ArrayBuffer)
+      if (type === 'PROGRESS' && onProgress) {
+        onProgress(payload)
+      } else if (type === 'DONE') {
+        worker.removeEventListener('message', handleMessage)
+        resolve(payload as Blob)
+      } else if (type === 'ERROR') {
+        worker.removeEventListener('message', handleMessage)
+        reject(new Error(payload))
+      }
+    }
 
-  // Clean up
-  await f.deleteFile(inputName)
-  await f.deleteFile(outputName)
-
-  return new Blob([data], { type: 'audio/webm' })
+    worker.addEventListener('message', handleMessage)
+    worker.postMessage({ type: 'COMPRESS', id, payload: blob })
+  })
 }

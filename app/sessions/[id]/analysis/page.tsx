@@ -9,6 +9,7 @@ import { FactCheckList } from "@/features/analysis/FactCheckList"
 import { BenchmarkingUI } from "@/features/benchmarking/BenchmarkingUI"
 import { CoachChatbot } from "@/features/analysis/CoachChatbot"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { RealtimeSessionSync } from "@/features/analysis/RealtimeSessionSync"
 
 export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -56,14 +57,23 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
         
-        <div className="bg-card p-4 rounded-md border text-sm">
-          <span className="font-semibold block mb-1">Motion:</span>
-          {session.motions?.text}
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="bg-accent px-2 py-0.5 rounded-full">Role: {session.role}</span>
+        <div className="bg-card p-4 rounded-md border text-sm flex items-center justify-between">
+          <div>
+            <span className="font-semibold block mb-1">Motion:</span>
+            {session.motions?.text}
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="bg-accent px-2 py-0.5 rounded-full">Role: {session.role}</span>
+            </div>
           </div>
+          {session.status !== 'analyzed' && (
+            <div className="flex items-center gap-2 text-muted-foreground animate-pulse">
+              <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+              Analyzing...
+            </div>
+          )}
         </div>
       </div>
+      <RealtimeSessionSync sessionId={session.id} status={session.status} />
 
       {hasAnalysis ? (
         <Tabs defaultValue={`speaker-0`} className="w-full">

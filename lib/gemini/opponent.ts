@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { google } from '@ai-sdk/google'
+import { generateText } from 'ai'
 
 export async function generateOpponentRebuttal({
   transcript,
@@ -43,12 +44,9 @@ CRITICAL INSTRUCTION: You are an elite HUMAN debater, not an omniscient AI. You 
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured")
   }
-  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-  const model = genai.getGenerativeModel({ 
-    model: 'gemini-2.0-flash',
-    systemInstruction: personaPrompt + '\n' + fallibilityPrompt
-  })
+  const model = google('gemini-2.0-flash')
+  const systemPrompt = personaPrompt + '\n' + fallibilityPrompt
 
   const prompt = `The debate format is: ${format || 'Free Sparring'}.
 The motion is: "${motion}".
@@ -62,8 +60,12 @@ Write your rebuttal speech. It should be approximately 3-4 paragraphs (about 2 m
 Speak directly to the opponent and the judge. Do NOT use markdown or special formatting. Just pure spoken text so it can be read aloud by a Text-to-Speech engine.`
 
   try {
-    const result = await model.generateContent(prompt)
-    return result.response.text().trim()
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      prompt,
+    })
+    return result.text.trim()
   } catch (err) {
     console.error("Opponent generation error:", err)
     throw new Error("Failed to generate AI rebuttal")
