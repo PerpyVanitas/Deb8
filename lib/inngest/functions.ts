@@ -35,7 +35,7 @@ export const analyzeSessionFn = inngest.createFunction(
     });
 
     // 2. Sequential Gemini tasks with sleeps to respect Free Tier 15 RPM limit
-    const analysisResults = [];
+    const analysisResults: any[] = [];
     for (let i = 0; i < transcripts.length; i++) {
       const transcript = transcripts[i];
       const roleStr = transcript.speaker_role || session.role;
@@ -81,7 +81,7 @@ export const analyzeSessionFn = inngest.createFunction(
     }
 
     // 3. Benchmarking (also sequential with sleeps)
-    const benchmarkResults = [];
+    const benchmarkResults: any[] = [];
     for (let i = 0; i < analysisResults.length; i++) {
       const res = analysisResults[i];
       const benchmark = await step.run(`generate-benchmark-${i}`, async () => {
