@@ -6,10 +6,18 @@ import { inngest } from '@/lib/inngest/client'
 import { revalidatePath } from 'next/cache'
 import { analysisRequestSchema, analysisResponseSchema } from '@/lib/inngest/types'
 
-export const maxDuration = 60; // Allow Vercel to run up to 60s
+export const maxDuration = 15
+
+function isDegradedAnalysis(analysis: any) {
+  const text = `${analysis?.rfd_summary || ''}`.toLowerCase()
+  return text.includes('unable to analyze') || text.includes('ai quota') || text.includes('quota limits')
+}
 
 export async function POST(req: Request) {
-  const ip = req.headers.get('x-forwarded-for') || '127.0.0.1'
+  const ip =
+    req.headers.get('x-real-ip') ??
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    '127.0.0.1'
   const { success } = await aiRateLimit.limit(ip)
   if (!success) {
     return NextResponse.json({ error: 'Rate limit exceeded. Please wait.' }, { status: 429 })
@@ -49,7 +57,18 @@ export async function POST(req: Request) {
     if (sessionError) throw sessionError
     if (!session) throw new Error('Session not found')
 
-    if (session.status === 'analyzing' || session.status === 'analyzed') {
+    const { data: existingAnalyses, error: existingAnalysesError } = await supabase
+      .from('analyses')
+      .select('rfd_summary')
+      .eq('session_id', sessionId)
+
+    if (existingAnalysesError) throw existingAnalysesError
+
+    const hasOnlyDegradedAnalyses =
+      (existingAnalyses?.length || 0) > 0 &&
+      existingAnalyses!.every(isDegradedAnalysis)
+
+    if (session.status === 'analyzing' || (session.status === 'analyzed' && !hasOnlyDegradedAnalyses)) {
       console.log('Analyze route: session already in progress or complete, skipping duplicate enqueue', {
         sessionId,
         status: session.status
@@ -61,7 +80,7 @@ export async function POST(req: Request) {
       .from('debate_sessions')
       .update({ status: 'analyzing' })
       .eq('id', sessionId)
-      .in('status', ['pending', 'recorded'])
+      .in('status', ['pending', 'recorded', 'analyzed'])
       .select('status')
       .maybeSingle()
 

@@ -12,7 +12,7 @@ This file is a living document that tracks the state, architecture, and current 
 ## 1. Project Overview
 **Deb8** is a high-performance web application designed for competitive debaters. It allows users to record speeches, receive instantaneous AI-driven analysis, and track their debate progression over time. 
 
-The application is built to handle complex debate formats such as BP (British Parliamentary), Asian Parliamentary, and 1v1 Sparring, natively supporting multi-speaker sessions on a single device through a "hot-seat" UI flow.
+The application is optimized for a single active user recording one speech at a time, then receiving staged AI analysis.
 
 ### Core Technologies
 - **Framework**: Next.js 15+ (App Router)
@@ -33,10 +33,10 @@ The application is built to handle complex debate formats such as BP (British Pa
 - Implemented Groq for transcription and Gemini for analysis.
 - Offloaded heavy API polling to Inngest background queues to prevent Vercel serverless timeouts.
 
-### Epic 1: Multi-Speaker "Hot-Seat" Mode
+### Core Recording Flow
 - **Refactored Schema**: Dropped 1:1 constraints to allow multiple transcripts, analyses, and ballots per `session_id`.
-- **Pass-and-Play UI**: The Recording engine loops based on format (e.g., 6 speeches for 3v3).
-- **Parallel Analysis**: `inngest/functions.ts` uses `Promise.all` to spin up concurrent Gemini jobs for each speaker.
+- **Recording UI**: The Recording engine captures one speech, transcribes it, and sends it into the staged analysis pipeline.
+- **Staged Analysis**: `inngest/functions.ts` processes core feedback first, then lower-priority analysis sections with deliberate pacing.
 - **Tabbed Dashboard**: `AnalysisPage` renders individual feedback for each speaker via tabs.
 
 ### Epic 2: Automated E2E Testing
@@ -56,7 +56,7 @@ The application is built to handle complex debate formats such as BP (British Pa
 ### Epic 4: Backend Scale & Stability
 - **Audio Compression**: Client-side `@ffmpeg/wasm` Web Worker shrinks audio files down using 32kbps Opus before Supabase upload.
 - **Realtime UI**: `AnalysisLoader` uses Supabase Realtime (`postgres_changes`) to instantly push dashboard updates when Inngest finishes, eliminating HTTP polling.
-- **Edge Runtime**: High-traffic routes like `/leaderboard` and `/dashboard` utilize Next.js Edge Runtime for instantaneous delivery. `user_skills` handles complex ranking queries natively.
+- **Edge Runtime**: High-traffic routes like `/dashboard` utilize Next.js Edge Runtime for instantaneous delivery.
 
 ---
 
@@ -66,12 +66,12 @@ The full, idempotent schema migration script can be found in `full-migration.sql
 
 - **`profiles`**: Links to `auth.users`. Tracks `display_name`, `is_admin`, `xp`, `current_streak`, `last_debate_date`, and `total_speeches`.
 - **`motions`**: Debate topics. Tracks `text`, `category`, `difficulty`, `format`. Includes `is_motion_of_the_day` logic.
-- **`debate_sessions`**: The core pivot table. Tracks `user_id`, `motion_id`, `format`, `mode` (e.g., `human_vs_human_3v3`), and `status` (pending/transcribing/analyzing/analyzed).
+- **`debate_sessions`**: The core pivot table. Tracks `user_id`, `motion_id`, `format`, optional legacy `mode`, and `status` (pending/transcribing/analyzing/analyzed).
 - **`transcripts`**: Audio text. Includes `speaker_index` and `speaker_role`. Unique constraint on `(session_id, speaker_index)`.
 - **`analyses`**: Gemini's structural and stylistic feedback. Unique constraint on `(session_id, speaker_index)`.
 - **`ballots`**: The overall judge decision/RFD (Reason for Decision). Unique constraint on `(session_id, speaker_index)`.
-- **`fact_checks`**: Hallucination catching for claims. Unique constraint on `(session_id, speaker_index)`.
-- **`skill_snapshots` & `user_skills`**: Tracks rolling averages of user metrics (Logic, Rhetoric, Structure) for progression trees and global leaderboards.
+- **`fact_checks`**: Hallucination catching for claims. Unique constraint on `(session_id, speaker_index, claim)`.
+- **`skill_snapshots` & `user_skills`**: Tracks rolling averages of user metrics (Logic, Rhetoric, Structure) for the progression view.
 
 ---
 

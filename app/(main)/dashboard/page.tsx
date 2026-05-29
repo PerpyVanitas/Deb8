@@ -3,7 +3,6 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { SkillTree } from "@/features/progression/SkillTree"
 import { RecentSessions } from "@/features/dashboard/RecentSessions"
 
@@ -20,7 +19,6 @@ export default async function DashboardPage() {
   }
 
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
-  const isAdmin = !!profile?.is_admin
 
   const { data: sessions } = await supabase
     .from("debate_sessions")
@@ -70,7 +68,7 @@ export default async function DashboardPage() {
         <SkillTree debateDna={profile?.debate_dna} history={history || []} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 mb-8">
+      <div className="mb-8">
         {motd ? (
           <Card className="border-primary/50 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-2">
@@ -100,18 +98,6 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Global Leaderboards</CardTitle>
-            <CardDescription>Compare your skills against the world.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline">
-              <Link href="/leaderboard">View rankings</Link>
-            </Button>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>

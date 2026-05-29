@@ -1,12 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { RecordingPanel } from "@/features/recording/RecordingPanel"
-import { PrepTimer } from "@/features/recording/PrepTimer"
 import { FlowSheet } from "@/features/recording/FlowSheet"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-export default async function RecordPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ speaker?: string }> }) {
+export default async function RecordPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -24,19 +23,7 @@ export default async function RecordPage({ params, searchParams }: { params: Pro
     redirect("/dashboard")
   }
 
-  const speakerIndex = parseInt((await searchParams).speaker || "0")
-  let maxSpeakers = 1
-  if (session.mode === 'human_vs_human_1v1') maxSpeakers = 2
-  else if (session.mode === 'human_vs_human_3v3') maxSpeakers = 6
-
-  // Define roles based on format/mode for the UI
-  let currentRole = session.role
-  if (session.mode.startsWith('human_vs_human')) {
-    const roles1v1 = ['Affirmative', 'Negative']
-    const roles3v3 = ['Prime Minister', 'Leader of Opposition', 'Deputy Prime Minister', 'Deputy Leader of Opposition', 'Government Whip', 'Opposition Whip']
-    if (session.mode === 'human_vs_human_1v1') currentRole = roles1v1[speakerIndex] || 'Speaker'
-    if (session.mode === 'human_vs_human_3v3') currentRole = roles3v3[speakerIndex] || 'Speaker'
-  }
+  const currentRole = session.role || "Speaker"
 
   // Set time limit
   const isMicroDrill = session.format?.includes('1-Minute Micro Drill')
@@ -53,7 +40,7 @@ export default async function RecordPage({ params, searchParams }: { params: Pro
           <span className="font-semibold block mb-1">Motion:</span>
           {session.motions?.text}
           <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="bg-background px-2 py-1 rounded border">Role: {session.role}</span>
+            <span className="bg-background px-2 py-1 rounded border">Role: {currentRole}</span>
             <span className="bg-background px-2 py-1 rounded border">Format: {session.motions?.format}</span>
           </div>
         </div>
@@ -61,13 +48,10 @@ export default async function RecordPage({ params, searchParams }: { params: Pro
 
       <div className="flex-1 grid md:grid-cols-2 gap-8 items-start">
         <div className="flex flex-col gap-6">
-          {speakerIndex === 0 && <PrepTimer initialMinutes={15} />}
           <RecordingPanel 
             sessionId={session.id} 
             userId={user.id} 
-            speakerIndex={speakerIndex}
             speakerRole={currentRole}
-            maxSpeakers={maxSpeakers}
             timeLimitSeconds={timeLimitSeconds}
           />
         </div>

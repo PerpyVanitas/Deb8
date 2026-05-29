@@ -1,19 +1,9 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, Trophy, List, Shield, LogOut } from 'lucide-react'
+import { LayoutDashboard, List, LogOut } from 'lucide-react'
 
 export async function Sidebar() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  let isAdmin = false
-  if (user) {
-    const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).maybeSingle()
-    isAdmin = !!profile?.is_admin
-  }
-
   return (
     <div className="w-64 border-r bg-card h-screen sticky top-0 flex flex-col shrink-0">
       <div className="p-6">
@@ -29,14 +19,6 @@ export async function Sidebar() {
         <Link href="/motions" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent text-sm font-medium transition-colors">
           <List className="w-4 h-4 text-muted-foreground" /> Motions
         </Link>
-        <Link href="/leaderboard" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-          <Trophy className="w-4 h-4 text-muted-foreground" /> Leaderboard
-        </Link>
-        {isAdmin && (
-          <Link href="/admin" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent text-sm font-medium transition-colors">
-            <Shield className="w-4 h-4 text-muted-foreground" /> Admin
-          </Link>
-        )}
       </nav>
       <div className="p-4 border-t flex flex-col gap-2">
         <div className="flex items-center justify-between px-3 py-2">

@@ -40,6 +40,11 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ballots_session_id_key') THEN
         ALTER TABLE ballots DROP CONSTRAINT ballots_session_id_key;
     END IF;
+    -- Drop the first multi-speaker fact check constraint if it exists.
+    -- Fact checks need one row per claim, not one row per speaker.
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fact_checks_session_id_speaker_index_key') THEN
+        ALTER TABLE fact_checks DROP CONSTRAINT fact_checks_session_id_speaker_index_key;
+    END IF;
 END $$;
 
 -- 6. Add new composite unique constraints (session_id, speaker_index)
@@ -57,8 +62,8 @@ BEGIN
         ALTER TABLE ballots ADD UNIQUE (session_id, speaker_index);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fact_checks_session_id_speaker_index_key') THEN
-        ALTER TABLE fact_checks ADD UNIQUE (session_id, speaker_index);
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fact_checks_session_id_speaker_index_claim_key') THEN
+        ALTER TABLE fact_checks ADD UNIQUE (session_id, speaker_index, claim);
     END IF;
 END $$;
 

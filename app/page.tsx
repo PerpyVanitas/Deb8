@@ -54,9 +54,6 @@ export default async function HomePage() {
           <Button asChild size="lg" variant="outline">
             <Link href="/motions">Browse motions</Link>
           </Button>
-          <Button asChild size="lg" variant="ghost">
-            <Link href="/leaderboard">Leaderboards</Link>
-          </Button>
         </div>
       </section>
     </main>

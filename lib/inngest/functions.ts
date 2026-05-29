@@ -1,16 +1,28 @@
 import * as Sentry from '@sentry/nextjs'
 import { inngest } from "./client";
 import { createClient } from '@supabase/supabase-js'
-import { analyzeSpeaker, mapUnifiedToLegacy } from '@/lib/gemini/unified'
-import { generateAutomatedBenchmark } from '@/lib/gemini/benchmarking'
+import {
+  analyzeSpeakerArguments,
+  analyzeSpeakerCoaching,
+  analyzeSpeakerCore,
+  mapUnifiedToLegacy
+} from '@/lib/gemini/unified'
 import { updateSkills } from '@/lib/progression/updateSkills'
-import { revalidatePath } from 'next/cache'
 import { analysisEventSchema } from '@/lib/inngest/types'
 import { geminiRateLimit } from '@/lib/rate-limit'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+function throwIfSupabaseError(error: any) {
+  if (error) throw error
+}
+
+function isDegradedAnalysis(analysis: any) {
+  const text = `${analysis?.rfd_summary || ''}`.toLowerCase()
+  return text.includes('unable to analyze') || text.includes('ai quota') || text.includes('quota limits')
+}
 
 export const helloFn = inngest.createFunction(
   { id: "hello-fn" },
@@ -33,128 +45,175 @@ export const analyzeSessionFn = inngest.createFunction(
       const { session, transcripts } = await step.run("fetch-data", async () => {
         const [sessionRes, transcriptsRes] = await Promise.all([
           supabase.from('debate_sessions').select('*, motions(text)').eq('id', sessionId).single(),
-          supabase.from('transcripts').select('*').eq('session_id', sessionId)
+          supabase.from('transcripts').select('*').eq('session_id', sessionId).order('speaker_index', { ascending: true })
         ])
         if (sessionRes.error) throw sessionRes.error
         if (transcriptsRes.error) throw transcriptsRes.error
         return { session: sessionRes.data, transcripts: transcriptsRes.data }
       });
 
-      // 2. Sequential Gemini tasks with a single unified call per speaker
+      // 2. Sequential Gemini tasks, saved section-by-section in priority order.
       const analysisResults: {
         analysis: any,
         ballot: any,
+        benchmark: any,
         factChecks: any[],
         speakerIndex: number,
         speakerRole: string
       }[] = [];
 
       async function runGeminiStep<T>(stepName: string, task: () => Promise<T>) {
-        const maxRetries = 5
+        const maxRetries = 12
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           const limit = await geminiRateLimit.limit('global')
           if (limit.success) {
             return await step.run(stepName, task)
           }
 
-          const waitMs = 5000 * (attempt + 1)
+          const resetMs = limit.reset ? Math.max(0, limit.reset - Date.now()) : 0
+          const waitMs = Math.max(5000 * (attempt + 1), resetMs)
           console.warn(`Gemini rate limit hit for ${stepName}; retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`)
           await step.sleep(`${stepName}-rate-limit-wait-${attempt + 1}`, `${waitMs}ms`)
         }
         throw new Error('Gemini rate limit exceeded. Please retry later.')
       }
 
+      const INTER_SECTION_DELAY_MS = 8000
       const INTER_SPEAKER_DELAY_MS = 5000
 
       for (let i = 0; i < transcripts.length; i++) {
         const transcript = transcripts[i];
-        const roleStr = transcript.speaker_role || session.role;
+        const roleStr = transcript.speaker_role || `Speaker ${transcript.speaker_index + 1}`;
 
-        const unified = await runGeminiStep(`analyze-speaker-${i}`, async () => {
-          return await analyzeSpeaker(
+        const coreUnified = await runGeminiStep(`analyze-speaker-core-${i}`, async () => {
+          return await analyzeSpeakerCore(
             transcript.raw_text,
             roleStr,
-            session.format
+            session.format,
+            { harshness }
           )
         });
 
-        const { analysis, ballot, factChecks } = mapUnifiedToLegacy(unified)
+        const { analysis, ballot } = mapUnifiedToLegacy(coreUnified)
 
         analysisResults.push({
           analysis,
           ballot,
-          factChecks,
+          benchmark: null,
+          factChecks: [],
           speakerIndex: transcript.speaker_index,
           speakerRole: roleStr
         });
+
+        await step.run(`save-speaker-core-${i}`, async () => {
+          const analysisRes = await supabase.from('analyses').upsert({
+            session_id: sessionId,
+            speaker_index: transcript.speaker_index,
+            speaker_role: roleStr,
+            ...analysis,
+            elite_benchmark: null
+          }, { onConflict: 'session_id, speaker_index' });
+          throwIfSupabaseError(analysisRes.error)
+
+          const ballotRes = await supabase.from('ballots').upsert({
+            session_id: sessionId,
+            speaker_index: transcript.speaker_index,
+            ...ballot
+          }, { onConflict: 'session_id, speaker_index' });
+          throwIfSupabaseError(ballotRes.error)
+        })
+
+        if (isDegradedAnalysis(analysis)) {
+          console.warn(`Skipping lower-priority analysis stages for ${roleStr}; core analysis is degraded.`)
+          if (i < transcripts.length - 1) {
+            await step.sleep(`sleep-after-degraded-core-${i}`, `${INTER_SPEAKER_DELAY_MS}ms`)
+          }
+          continue
+        }
+
+        await step.sleep(`sleep-after-core-${i}`, `${INTER_SECTION_DELAY_MS}ms`)
+
+        const argumentResult = await runGeminiStep(`analyze-speaker-arguments-${i}`, async () => {
+          return await analyzeSpeakerArguments(
+            transcript.raw_text,
+            roleStr,
+            session.format,
+            { harshness }
+          )
+        })
+
+        await step.run(`save-speaker-arguments-${i}`, async () => {
+          const analysisRes = await supabase
+            .from('analyses')
+            .update({ arguments: argumentResult.arguments ?? [] })
+            .eq('session_id', sessionId)
+            .eq('speaker_index', transcript.speaker_index)
+          throwIfSupabaseError(analysisRes.error)
+
+          if (argumentResult.fact_checks && argumentResult.fact_checks.length > 0) {
+            const factCheckRows = argumentResult.fact_checks.map((fc: any) => ({
+              session_id: sessionId,
+              speaker_index: transcript.speaker_index,
+              claim: fc.claim,
+              verdict: fc.verdict,
+              confidence: 0,
+              explanation: fc.explanation,
+              sources: []
+            }))
+            const factChecksRes = await supabase.from('fact_checks').upsert(factCheckRows, {
+              onConflict: 'session_id, speaker_index, claim'
+            })
+            throwIfSupabaseError(factChecksRes.error)
+          }
+        })
+
+        analysisResults[analysisResults.length - 1].analysis.arguments = argumentResult.arguments ?? []
+        analysisResults[analysisResults.length - 1].factChecks = argumentResult.fact_checks ?? []
+
+        await step.sleep(`sleep-after-arguments-${i}`, `${INTER_SECTION_DELAY_MS}ms`)
+
+        const coachingResult = await runGeminiStep(`analyze-speaker-coaching-${i}`, async () => {
+          return await analyzeSpeakerCoaching(
+            transcript.raw_text,
+            roleStr,
+            session.format,
+            { harshness }
+          )
+        })
+
+        const updatedCoaching = {
+          ...analysis.coaching,
+          drills: coachingResult.drills ?? []
+        }
+
+        await step.run(`save-speaker-coaching-${i}`, async () => {
+          const analysisRes = await supabase
+            .from('analyses')
+            .update({
+              coaching: updatedCoaching,
+              elite_benchmark: coachingResult.benchmark ?? null
+            })
+            .eq('session_id', sessionId)
+            .eq('speaker_index', transcript.speaker_index)
+          throwIfSupabaseError(analysisRes.error)
+        })
+
+        analysisResults[analysisResults.length - 1].analysis.coaching = updatedCoaching
+        analysisResults[analysisResults.length - 1].benchmark = coachingResult.benchmark ?? null
 
         if (i < transcripts.length - 1) {
           await step.sleep(`sleep-after-speaker-${i}`, `${INTER_SPEAKER_DELAY_MS}ms`)
         }
       }
 
-      // 3. Benchmarking (also sequential with sleeps)
-      const benchmarkResults: any[] = [];
-      for (let i = 0; i < analysisResults.length; i++) {
-        const res = analysisResults[i];
-
-        const benchmark = await runGeminiStep(`generate-benchmark-${i}`, async () => {
-          return await generateAutomatedBenchmark(res.analysis, session.motions.text);
-        });
-        await step.sleep(`sleep-after-benchmark-${i}`, "5s");
-        benchmarkResults.push({ speakerIndex: res.speakerIndex, benchmark });
-      }
-
-      // 4. Save to DB
-      await step.run("save-results", async () => {
-        for (const res of analysisResults) {
-          const bench = benchmarkResults.find((b: any) => b.speakerIndex === res.speakerIndex)?.benchmark
-
-          await supabase.from('analyses').upsert({
-            session_id: sessionId,
-            speaker_index: res.speakerIndex,
-            speaker_role: res.speakerRole,
-            ...res.analysis,
-            elite_benchmark: bench
-          }, { onConflict: 'session_id, speaker_index' });
-
-          await supabase.from('ballots').upsert({
-            session_id: sessionId,
-            speaker_index: res.speakerIndex,
-            ...res.ballot
-          }, { onConflict: 'session_id, speaker_index' });
-
-          if (res.factChecks && res.factChecks.length > 0) {
-            const factCheckRows = res.factChecks.map((fc: any) => ({
-              session_id: sessionId,
-              speaker_index: res.speakerIndex,
-              claim: fc.claim,
-              verdict: fc.verdict,
-              confidence: fc.confidence,
-              explanation: fc.explanation,
-              sources: fc.sources
-            }));
-            await supabase.from('fact_checks').delete().eq('session_id', sessionId).eq('speaker_index', res.speakerIndex);
-            await supabase.from('fact_checks').insert(factCheckRows);
-          }
-        }
-      });
-
-      // 5. Update Skills and Session Status
+      // 3. Update Skills and Session Status
       await step.run("finalize-session", async () => {
-        await supabase.from('debate_sessions').update({ status: 'analyzed' }).eq('id', sessionId);
+        const sessionUpdateRes = await supabase.from('debate_sessions').update({ status: 'analyzed' }).eq('id', sessionId);
+        throwIfSupabaseError(sessionUpdateRes.error)
 
         const primaryRes = analysisResults.find((r: any) => r.speakerIndex === 0)
         if (primaryRes && primaryRes.analysis.scores) {
           await updateSkills(userId, sessionId, primaryRes.analysis.scores);
-        }
-
-        try {
-          revalidatePath('/dashboard');
-          revalidatePath(`/sessions/${sessionId}/analysis`);
-          revalidatePath('/leaderboard');
-        } catch (err) {
-          console.error("Failed to revalidate cache", err)
         }
       });
 

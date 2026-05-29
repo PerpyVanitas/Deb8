@@ -9,7 +9,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import { 
   Trophy, TrendingUp, AlertTriangle, MessageSquare, 
   Target, Zap, Download, FileText, CheckCircle2, Dumbbell,
-  Lightbulb, Activity, Waves, Loader2, Shield, BarChart3
+  Lightbulb, Activity, Waves, Loader2, Shield, BarChart3, RefreshCw
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import html2canvas from "html2canvas"
@@ -17,20 +17,33 @@ import { jsPDF } from "jspdf"
 import { Button } from "@/components/ui/button"
 import { JargonText } from "@/components/ui/jargon-text"
 
+const CHART_COLORS = {
+  primary: "#2563eb",
+  foreground: "#e5e7eb",
+  muted: "#e5e7eb",
+  card: "#ffffff",
+  border: "#d1d5db"
+}
+
 type AnalysisProps = {
   analysis: any
+  sessionId: string
+  transcriptText?: string
+  isComplete?: boolean
   wpm?: number | null
 }
 
-export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
+export function AnalysisResults({ analysis, sessionId, transcriptText, isComplete = true, wpm }: AnalysisProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const currentTab = searchParams.get('tab') || 'overview'
   
   const [completedDrills, setCompletedDrills] = useState<Record<number, boolean>>({})
   const [isExporting, setIsExporting] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
 
   const { scores, arguments: args, tone, archetype, coaching, rfd_summary } = analysis
+  const isDegraded = typeof rfd_summary === 'string' && /unable to analyze|ai quota|quota limits/i.test(rfd_summary)
 
   const chartData = [
     { subject: 'Structure', A: scores.structure, fullMark: 10 },
@@ -57,7 +70,36 @@ export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
       const element = document.getElementById("pdf-content")
       if (!element) return
 
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true })
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        onclone: (clonedDocument) => {
+          const style = clonedDocument.createElement("style")
+          style.textContent = `
+            #pdf-content,
+            #pdf-content * {
+              background-color: #ffffff !important;
+              color: #111827 !important;
+              border-color: #d1d5db !important;
+              box-shadow: none !important;
+            }
+            #pdf-content svg,
+            #pdf-content svg * {
+              background-color: transparent !important;
+            }
+            #pdf-content .recharts-polar-grid-angle line,
+            #pdf-content .recharts-polar-grid-concentric polygon,
+            #pdf-content .recharts-cartesian-grid line {
+              stroke: #e5e7eb !important;
+            }
+            #pdf-content .recharts-radar-polygon {
+              stroke: #2563eb !important;
+              fill: rgba(37, 99, 235, 0.35) !important;
+            }
+          `
+          clonedDocument.head.appendChild(style)
+        }
+      })
       const imgData = canvas.toDataURL('image/png')
       
       const pdf = new jsPDF('p', 'mm', 'a4')
@@ -73,15 +115,53 @@ export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
     }
   }
 
+  const retryAnalysis = async () => {
+    setIsRetrying(true)
+    try {
+      const harshness = localStorage.getItem('deb8_harshness') || 'Standard'
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, harshness })
+      })
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+
+      router.refresh()
+    } catch (error) {
+      console.error("Retry Analysis Error:", error)
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold tracking-tight">AI Feedback Report</h2>
-        <Button variant="outline" size="sm" onClick={exportPdf} disabled={isExporting}>
-          {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          {isDegraded && (
+            <Button variant="default" size="sm" onClick={retryAnalysis} disabled={isRetrying}>
+              {isRetrying ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Retry Analysis
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportPdf} disabled={isExporting}>
+            {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+            Export PDF
+          </Button>
+        </div>
       </div>
+
+      {isDegraded && (
+        <Card className="border-yellow-500/30 bg-yellow-500/10">
+          <CardContent className="p-4 text-sm text-yellow-700 dark:text-yellow-300">
+            The saved result is a fallback, not a real AI analysis. Your transcript is preserved below; retry when the Gemini quota is available.
+          </CardContent>
+        </Card>
+      )}
 
       <div id="pdf-content" className="bg-background rounded-lg p-2">
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
@@ -127,11 +207,11 @@ export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
               <CardContent className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
-                    <PolarGrid stroke="hsl(var(--muted))" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} />
+                    <PolarGrid stroke={CHART_COLORS.muted} />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: CHART_COLORS.foreground, fontSize: 12 }} />
                     <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
-                    <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
-                    <Radar name="Score" dataKey="A" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.4} />
+                    <RechartsTooltip contentStyle={{ backgroundColor: CHART_COLORS.card, borderRadius: '8px', border: `1px solid ${CHART_COLORS.border}`, color: CHART_COLORS.foreground }} />
+                    <Radar name="Score" dataKey="A" stroke={CHART_COLORS.primary} fill={CHART_COLORS.primary} fillOpacity={0.4} />
                   </RadarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -152,6 +232,21 @@ export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
         </TabsContent>
 
         <TabsContent value="arguments" className="space-y-4 mt-0">
+          {transcriptText && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="w-4 h-4 text-primary" /> Transcript
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-4 text-sm leading-relaxed text-muted-foreground">
+                  {transcriptText}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold flex items-center gap-2"><Lightbulb className="w-5 h-5 text-yellow-500" /> Arguments Delivered</h3>
             <p className="text-sm text-muted-foreground">Extracted from your speech transcript</p>
@@ -174,7 +269,12 @@ export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
                 </CardContent>
               </Card>
             ))}
-            {(!args || args.length === 0) && (
+            {(!args || args.length === 0) && !isDegraded && !isComplete && (
+              <div className="text-muted-foreground text-sm p-8 text-center border rounded-md col-span-2 bg-muted/20">
+                Arguments are still being extracted. This section will appear automatically when the next analysis stage finishes.
+              </div>
+            )}
+            {(!args || args.length === 0) && (isDegraded || isComplete) && (
               <div className="text-muted-foreground text-sm p-8 text-center border rounded-md col-span-2 bg-muted/20">
                 No clear structured arguments were extracted from the speech. Try to signpost your claims more clearly.
               </div>
@@ -279,6 +379,11 @@ export function AnalysisResults({ analysis, wpm }: AnalysisProps) {
                     </label>
                   </div>
                 ))}
+                {(!coaching?.drills || coaching.drills.length === 0) && !isDegraded && !isComplete && (
+                  <div className="text-muted-foreground text-sm p-6 text-center border rounded-md bg-muted/20">
+                    Coaching drills are still being generated.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

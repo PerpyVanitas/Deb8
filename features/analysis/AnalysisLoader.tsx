@@ -20,10 +20,19 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
   const analysisRequested = useRef(false)
+  const completionHandled = useRef(false)
 
   useEffect(() => {
     let mounted = true
     let channel: any
+
+    const completeAndRefresh = () => {
+      if (!mounted || completionHandled.current) return
+      completionHandled.current = true
+      setStatus('Analysis complete!')
+      setProgress(100)
+      router.refresh()
+    }
 
     const updatePartialProgress = (completed: number, total?: number | null) => {
       if (!mounted) return
@@ -51,12 +60,12 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
         setTotalSpeakers(total)
         updatePartialProgress(completed.length, total)
 
-        if (completed.length > 0 && sessionStatus !== 'analyzed') {
+        const allSpeakerAnalysesReady = typeof total === 'number' && total > 0 && completed.length >= total
+
+        if (sessionStatus === 'analyzed' || allSpeakerAnalysesReady) {
+          completeAndRefresh()
+        } else if (completed.length > 0) {
           setStatus(`Partial results available for ${completed.length} speaker(s); continuing analysis on remaining speaker(s)...`)
-        } else if (sessionStatus === 'analyzed') {
-          setStatus('Analysis complete!')
-          setProgress(100)
-          router.refresh()
         } else if (completed.length === 0) {
           setStatus('Analyzing logic, structure, and rhetoric (This may take up to 60 seconds)...')
         }
@@ -98,9 +107,7 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
           },
           async (payload) => {
             if (payload.new?.status === 'analyzed' && mounted) {
-              setStatus('Analysis complete!')
-              setProgress(100)
-              router.refresh()
+              completeAndRefresh()
             }
           }
         )
@@ -146,11 +153,16 @@ export function AnalysisLoader({ sessionId }: { sessionId: string }) {
       setProgress((p) => (p < 95 ? p + 1 : 95))
     }, 600)
 
+    const pollId = setInterval(() => {
+      refreshPartialResults()
+    }, 5000)
+
     runAnalysis()
 
     return () => {
       mounted = false
       clearInterval(intervalId)
+      clearInterval(pollId)
       if (channel) {
         supabase.removeChannel(channel)
       }

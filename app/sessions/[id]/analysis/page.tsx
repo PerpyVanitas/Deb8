@@ -35,7 +35,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
     supabase.from("analyses").select("*").eq("session_id", resolvedParams.id).order('speaker_index', { ascending: true }),
     supabase.from("ballots").select("*").eq("session_id", resolvedParams.id),
     supabase.from("fact_checks").select("*").eq("session_id", resolvedParams.id),
-    supabase.from("transcripts").select("speaker_index, word_count, duration_seconds").eq("session_id", resolvedParams.id)
+    supabase.from("transcripts").select("speaker_index, speaker_role, raw_text, word_count, duration_seconds").eq("session_id", resolvedParams.id)
   ])
 
   const analyses = analysisRes.data || []
@@ -62,7 +62,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
             <span className="font-semibold block mb-1">Motion:</span>
             {session.motions?.text}
             <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="bg-accent px-2 py-0.5 rounded-full">Role: {session.role}</span>
+              <span className="bg-accent px-2 py-0.5 rounded-full">Format: {session.format}</span>
             </div>
           </div>
           {session.status !== 'analyzed' && (
@@ -114,7 +114,13 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
                   </TabsList>
 
                   <TabsContent value="scorecard" className="space-y-8 animate-in fade-in-50 duration-500">
-                    <AnalysisResults analysis={analysis} wpm={wpm} />
+                    <AnalysisResults
+                      analysis={analysis}
+                      sessionId={session.id}
+                      transcriptText={speakerTranscript?.raw_text || ''}
+                      isComplete={session.status === 'analyzed'}
+                      wpm={wpm}
+                    />
                     {analysis.elite_benchmark && <BenchmarkingUI benchmark={analysis.elite_benchmark} />}
                     {speakerBallot && <BallotView ballot={speakerBallot} />}
                   </TabsContent>

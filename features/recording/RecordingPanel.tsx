@@ -14,16 +14,12 @@ import { toast } from "sonner"
 export function RecordingPanel({ 
   sessionId, 
   userId,
-  speakerIndex = 0,
   speakerRole = 'Speaker',
-  maxSpeakers = 1,
   timeLimitSeconds = 420
 }: { 
   sessionId: string; 
   userId: string;
-  speakerIndex?: number;
   speakerRole?: string;
-  maxSpeakers?: number;
   timeLimitSeconds?: number;
 }) {
   const { status, audioBlob, start, stop, pause, resume, discard, stream, clearAutosave } = useRecorder(sessionId)
@@ -70,30 +66,21 @@ export function RecordingPanel({
       setIsCompressing(false)
 
       setIsUploading(true)
-      const path = await uploadAudio(compressedBlob, userId, sessionId, speakerIndex)
+      const path = await uploadAudio(compressedBlob, userId, sessionId, 0)
       setIsUploading(false)
       
       setIsTranscribing(true)
       const res = await fetch('/api/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, path, speakerRole, speakerIndex, duration: seconds })
+        body: JSON.stringify({ sessionId, path, speakerRole, speakerIndex: 0, duration: seconds })
       })
       if (!res.ok) throw new Error("Transcription failed")
       
       setIsTranscribing(false)
       clearAutosave()
       
-      // Multi-speaker logic
-      if (speakerIndex + 1 < maxSpeakers) {
-        // Redirect to next speaker
-        router.push(`/sessions/${sessionId}/record?speaker=${speakerIndex + 1}`)
-        // Force refresh to clear states if shallow routing doesn't clear component
-        router.refresh()
-      } else {
-        // Navigate to analysis page
-        router.push(`/sessions/${sessionId}/analysis`)
-      }
+      router.push(`/sessions/${sessionId}/analysis`)
     } catch (err: any) {
       console.error(err)
       setIsCompressing(false)
@@ -145,7 +132,7 @@ export function RecordingPanel({
               <Mic className="w-10 h-10 text-white" />
             </Button>
             <span className="text-sm font-medium mt-2">
-              {maxSpeakers > 1 ? `Start ${speakerRole}'s Speech` : 'Start Recording'}
+              Start Recording
             </span>
           </div>
         )}

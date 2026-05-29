@@ -40,7 +40,7 @@ function getFallbackModels(modelName: string) {
 
 async function runWithFallback(
   options: any,
-  action: (opts: any) => Promise<any>,
+  action: (opts: any) => any,
   actionName: string
 ) {
   const modelName = normalizeModelName(options.model)
@@ -49,6 +49,11 @@ async function runWithFallback(
     return await action(options)
   } catch (error: any) {
     if (!isGeminiQuotaError(error)) {
+      throw error
+    }
+
+    if (options.allowQuotaFallback === false) {
+      console.warn(`${actionName} quota error detected for model=${modelName}; quota fallback disabled to avoid extra Gemini requests.`)
       throw error
     }
 

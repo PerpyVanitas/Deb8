@@ -21,7 +21,17 @@ export function RealtimeSessionSync({ sessionId, status }: { sessionId: string, 
       )
       .on(
         'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'analyses', filter: `session_id=eq.${sessionId}` },
+        () => router.refresh()
+      )
+      .on(
+        'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'ballots', filter: `session_id=eq.${sessionId}` },
+        () => router.refresh()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'fact_checks', filter: `session_id=eq.${sessionId}` },
         () => router.refresh()
       )
       .on(

@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Info, Search, Loader2 } from "lucide-react"
 import { getMotions } from "@/app/(main)/motions/actions"
@@ -68,7 +67,6 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
   const [role, setRole] = useState("PM")
   const [harshness, setHarshness] = useState("Standard")
   const [weighing, setWeighing] = useState("None")
-  const [is1v1, setIs1v1] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -139,20 +137,14 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
         body: JSON.stringify({
           motion_id: selectedMotionId,
           role,
-          format: `${is1v1 ? `${format}_1v1` : format}${weighing !== "None" ? ` (Optimize for: ${weighing})` : ""}`
+          format: `${format}${weighing !== "None" ? ` (Optimize for: ${weighing})` : ""}`
         })
       })
 
       if (!res.ok) throw new Error("Failed to start session")
       const session = await res.json()
       
-      // If 1v1 mode is active, we should route to a 1v1 Arena. 
-      // Otherwise, the standard record & analyze pipeline.
-      if (is1v1) {
-        router.push(`/sessions/${session.id}/arena`)
-      } else {
-        router.push(`/sessions/${session.id}/record`)
-      }
+      router.push(`/sessions/${session.id}/record`)
     } catch (error) {
       console.error(error)
       setIsLoading(false)
@@ -205,21 +197,6 @@ export function MotionSelector({ motions }: { motions: Motion[] }) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="flex items-center justify-between border rounded-md p-2 px-3 h-10">
-            <label className="text-sm font-medium cursor-pointer flex items-center gap-2" htmlFor="mode-toggle">
-              1v1 Training Mode
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="w-4 h-4 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="w-[200px] text-xs leading-relaxed">Turn this on to spar against an AI opponent in real-time. Turn off to record a full solo speech for pure analysis.</p>
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            <Switch id="mode-toggle" checked={is1v1} onCheckedChange={setIs1v1} />
           </div>
 
           <div className="space-y-2">

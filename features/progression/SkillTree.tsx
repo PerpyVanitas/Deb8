@@ -5,6 +5,15 @@ import { Badge } from "@/components/ui/badge"
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts"
 import { Trophy, TrendingUp, Shield } from "lucide-react"
 
+const CHART_COLORS = {
+  primary: "#2563eb",
+  foreground: "#e5e7eb",
+  muted: "#e5e7eb",
+  mutedForeground: "#6b7280",
+  card: "#ffffff",
+  border: "#d1d5db"
+}
+
 type SkillSnapshot = {
   created_at: string
   scores: Record<string, number>
@@ -66,11 +75,11 @@ export function SkillTree({ debateDna, history }: SkillTreeProps) {
           <CardContent className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                <PolarGrid stroke="hsl(var(--muted))" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} />
+                <PolarGrid stroke={CHART_COLORS.muted} />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: CHART_COLORS.foreground, fontSize: 12 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
-                <Radar name="DNA Profile" dataKey="Score" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.4} />
+                <Tooltip contentStyle={{ backgroundColor: CHART_COLORS.card, borderRadius: '8px', border: `1px solid ${CHART_COLORS.border}`, color: CHART_COLORS.foreground }} />
+                <Radar name="DNA Profile" dataKey="Score" stroke={CHART_COLORS.primary} fill={CHART_COLORS.primary} fillOpacity={0.4} />
               </RadarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -111,12 +120,12 @@ export function SkillTree({ debateDna, history }: SkillTreeProps) {
           <CardContent className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis domain={[0, 10]} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.muted} />
+                <XAxis dataKey="name" stroke={CHART_COLORS.mutedForeground} fontSize={12} />
+                <YAxis domain={[0, 10]} stroke={CHART_COLORS.mutedForeground} fontSize={12} />
+                <Tooltip contentStyle={{ backgroundColor: CHART_COLORS.card, borderRadius: '8px', border: `1px solid ${CHART_COLORS.border}`, color: CHART_COLORS.foreground }} />
                 <Legend />
-                <Line type="monotone" dataKey="Overall" stroke="hsl(var(--primary))" strokeWidth={3} activeDot={{ r: 8 }} />
+                <Line type="monotone" dataKey="Overall" stroke={CHART_COLORS.primary} strokeWidth={3} activeDot={{ r: 8 }} />
                 <Line type="monotone" dataKey="Logic" stroke="#3b82f6" strokeWidth={2} />
                 <Line type="monotone" dataKey="Rhetoric" stroke="#ec4899" strokeWidth={2} />
               </LineChart>
